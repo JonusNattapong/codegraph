@@ -1,7 +1,7 @@
 /**
  * Shared MCP daemon — issue #411.
  *
- * One detached `codegraph serve --mcp` daemon process per project root,
+ * One detached `codegg serve --mcp` daemon process per project root,
  * accepting N concurrent MCP clients over a Unix-domain socket (or named pipe
  * on Windows). Each incoming connection gets its own {@link MCPSession}; all
  * sessions share a single {@link MCPEngine}, which means a single file watcher
@@ -20,7 +20,7 @@
  *     so a SIGKILL'd host still reaps its proxy promptly; the proxy's socket
  *     close then decrements the daemon's refcount.
  *   - When the last client disconnects the daemon lingers for
- *     `CODEGRAPH_DAEMON_IDLE_TIMEOUT_MS` (default 300s) so back-to-back agent
+ *     `CODEGG_DAEMON_IDLE_TIMEOUT_MS` (default 300s) so back-to-back agent
  *     runs in the same project don't repay startup, then exits cleanly. This is
  *     what keeps a single-agent session from leaking a daemon forever (#277).
  *
@@ -28,7 +28,7 @@
  *   - Listening on the daemon socket and spawning per-connection sessions.
  *   - The handshake "hello" line that lets a proxy verify it found a
  *     same-version daemon before piping any JSON-RPC through it.
- *   - The lockfile (`.codegraph/daemon.pid`) competing daemons arbitrate
+ *   - The lockfile (`.codegg/daemon.pid`) competing daemons arbitrate
  *     against — atomic `O_EXCL` create with the full record written in the same
  *     breath (no empty-file window) + cleanup on exit.
  *   - Reference counting + idle timeout.
@@ -53,7 +53,7 @@ import {
   getDaemonPidPath,
   getDaemonSocketPath,
 } from './daemon-paths';
-import { CodeGraphPackageVersion } from './version';
+import { CodeGGPackageVersion } from './version';
 
 /** Default idle linger after the last client disconnects. */
 const DEFAULT_IDLE_TIMEOUT_MS = 300_000;
@@ -68,7 +68,7 @@ const MAX_HELLO_LINE_BYTES = 4096;
  * direct mode on mismatch rather than risk subtle wire incompatibilities.
  */
 export interface DaemonHello {
-  codegraph: string; // package version (must match the proxy's own version)
+  codegg: string; // package version (must match the proxy's own version)
   pid: number;       // daemon pid (informational; for `ps` debugging)
   socketPath: string; // echoed back so the proxy can log it
   protocol: 1;       // bump if the hello shape changes
@@ -137,7 +137,7 @@ export class Daemon {
       server.once('error', (err) => reject(err));
       server.listen(this.socketPath, () => {
         // POSIX: tighten permissions to user-only — the socket lives under
-        // `.codegraph/`, which is git-ignored but may be on a shared FS.
+        // `.codegg/`, which is git-ignored but may be on a shared FS.
         if (process.platform !== 'win32') {
           try { fs.chmodSync(this.socketPath, 0o600); } catch { /* best-effort */ }
         }
@@ -148,13 +148,13 @@ export class Daemon {
 
     const lock: DaemonLockInfo = {
       pid: process.pid,
-      version: CodeGraphPackageVersion,
+      version: CodeGGPackageVersion,
       socketPath: this.socketPath,
       startedAt: Date.now(),
     };
 
     process.stderr.write(
-      `[CodeGraph daemon] Listening on ${this.socketPath} (pid ${process.pid}, v${CodeGraphPackageVersion}). Idle timeout ${this.idleTimeoutMs}ms.\n`
+      `[CodeGG daemon] Listening on ${this.socketPath} (pid ${process.pid}, v${CodeGGPackageVersion}). Idle timeout ${this.idleTimeoutMs}ms.\n`
     );
 
     // No clients yet: arm the idle timer immediately so a daemon that nobody
@@ -186,7 +186,7 @@ export class Daemon {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
-    process.stderr.write(`[CodeGraph daemon] Shutting down (${reason}; clients=${this.clients.size}).\n`);
+    process.stderr.write(`[CodeGG daemon] Shutting down (${reason}; clients=${this.clients.size}).\n`);
     for (const session of [...this.clients]) {
       try { session.stop(); } catch { /* best-effort */ }
     }
@@ -207,7 +207,7 @@ export class Daemon {
     // Hello first so the proxy can verify versions before piping any
     // application bytes. The proxy reads exactly one line, then forwards.
     const hello: DaemonHello = {
-      codegraph: CodeGraphPackageVersion,
+      codegg: CodeGGPackageVersion,
       pid: process.pid,
       socketPath: this.socketPath,
       protocol: 1,
@@ -301,13 +301,13 @@ export type AcquireResult =
  */
 export function tryAcquireDaemonLock(projectRoot: string): AcquireResult {
   const pidPath = getDaemonPidPath(projectRoot);
-  // Make sure the .codegraph/ directory exists — the daemon may be the first
+  // Make sure the .codegg/ directory exists — the daemon may be the first
   // thing to touch it on a fresh-clone-but-already-initialized checkout.
   fs.mkdirSync(path.dirname(pidPath), { recursive: true });
 
   const info: DaemonLockInfo = {
     pid: process.pid,
-    version: CodeGraphPackageVersion,
+    version: CodeGGPackageVersion,
     socketPath: getDaemonSocketPath(projectRoot),
     startedAt: Date.now(),
   };
@@ -386,7 +386,7 @@ export function isProcessAlive(pid: number): boolean {
 }
 
 function resolveIdleTimeoutMs(): number {
-  const raw = process.env.CODEGRAPH_DAEMON_IDLE_TIMEOUT_MS;
+  const raw = process.env.CODEGG_DAEMON_IDLE_TIMEOUT_MS;
   if (raw === undefined || raw === '') return DEFAULT_IDLE_TIMEOUT_MS;
   const parsed = Number(raw);
   if (!Number.isFinite(parsed) || parsed < 0) return DEFAULT_IDLE_TIMEOUT_MS;

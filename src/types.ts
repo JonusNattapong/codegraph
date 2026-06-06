@@ -1,5 +1,5 @@
 /**
- * CodeGraph Type Definitions
+ * CodeGG Type Definitions
  *
  * Core types for the semantic knowledge graph system.
  */

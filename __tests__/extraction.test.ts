@@ -8,7 +8,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { CodeGraph } from '../src';
+import { CodeGG } from '../src';
 import { extractFromSource, scanDirectory } from '../src/extraction';
 import { detectLanguage, isLanguageSupported, getSupportedLanguages, initGrammars, loadAllGrammars, isSourceFile } from '../src/extraction/grammars';
 import { normalizePath } from '../src/utils';
@@ -20,7 +20,7 @@ beforeAll(async () => {
 
 // Create a temporary directory for each test
 function createTempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-test-'));
 }
 
 // Clean up temporary directory
@@ -3013,7 +3013,7 @@ end`;
     const code = `object frmMain: TfrmMain
   Left = 0
   Top = 0
-  Caption = 'CodeGraph DFM Fixture'
+  Caption = 'CodeGG DFM Fixture'
   ClientHeight = 480
   ClientWidth = 640
   OnCreate = FormCreate
@@ -3122,7 +3122,7 @@ export function multiply(a: number, b: number): number {
     );
 
     // Initialize and index
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     const result = await cg.indexAll();
 
     expect(result.success).toBe(true);
@@ -3156,7 +3156,7 @@ export function multiply(a: number, b: number): number {
     );
 
     // Initialize and index
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     const result = await cg.indexAll();
 
     expect(result.success).toBe(true);
@@ -3175,7 +3175,7 @@ export function multiply(a: number, b: number): number {
     fs.writeFileSync(path.join(srcDir, 'main.ts'), `export const x = 1;`);
 
     // Initialize and index
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     await cg.indexAll();
 
     // Check file is tracked
@@ -3203,7 +3203,7 @@ export function multiply(a: number, b: number): number {
     );
 
     // Initialize and index
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     await cg.indexAll();
 
     const initialNodes = cg.getNodesInFile('src/main.ts');
@@ -3231,7 +3231,7 @@ export function multiply(a: number, b: number): number {
     fs.writeFileSync(path.join(tempDir, 'app.yaml'), 'name: test\n');
     fs.writeFileSync(path.join(tempDir, 'routes.yml'), 'route: value\n');
 
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     const result = await cg.indexAll();
 
     expect(result.success).toBe(true);
@@ -3246,7 +3246,7 @@ export function multiply(a: number, b: number): number {
     fs.writeFileSync(path.join(tempDir, 'app.yaml'), 'name: test\n');
     fs.writeFileSync(path.join(tempDir, 'view.twig'), '{{ title }}\n');
 
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     const result = await cg.indexFiles(['app.yaml', 'view.twig']);
 
     expect(result.success).toBe(true);
@@ -3263,7 +3263,7 @@ export function multiply(a: number, b: number): number {
     fs.writeFileSync(path.join(tempDir, 'application.properties'), 'server.port=8080\n');
     fs.writeFileSync(path.join(tempDir, 'log.properties'), 'log.level=INFO\n');
 
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     const result = await cg.indexAll();
 
     expect(result.success).toBe(true);
@@ -3278,7 +3278,7 @@ export function multiply(a: number, b: number): number {
     fs.writeFileSync(path.join(tempDir, 'view.twig'), '{{ title }}\n');
     fs.writeFileSync(path.join(tempDir, 'application.properties'), 'server.port=8080\n');
 
-    const cg = CodeGraph.initSync(tempDir);
+    const cg = CodeGG.initSync(tempDir);
     const result = await cg.indexFiles(['app.yaml', 'view.twig', 'application.properties']);
 
     expect(result.success).toBe(true);

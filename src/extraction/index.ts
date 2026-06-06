@@ -101,7 +101,7 @@ const MAX_FILE_SIZE = 1024 * 1024;
 
 /**
  * Directory names that are dependency, build, cache, or tooling output across the
- * languages/frameworks CodeGraph supports — curated from the canonical
+ * languages/frameworks CodeGG supports — curated from the canonical
  * github/gitignore templates. Excluded by default so the graph reflects your code,
  * not third-party noise, without requiring a `.gitignore` (issue #407). The
  * exclusion applies uniformly (git or not, tracked or not); the only opt-in is an
@@ -110,7 +110,7 @@ const MAX_FILE_SIZE = 1024 * 1024;
  * `Library`) are deliberately NOT listed, to avoid ever hiding real source.
  *
  * Only dirs that actually contain *indexable source* (or are enormous) earn a slot
- * — IDE/state dirs like `.idea`/`.vs` are omitted because CodeGraph indexes only
+ * — IDE/state dirs like `.idea`/`.vs` are omitted because CodeGG indexes only
  * recognized source extensions, so they produce no symbols regardless.
  */
 const DEFAULT_IGNORE_DIRS: ReadonlySet<string> = new Set([
@@ -455,7 +455,7 @@ function scanDirectoryWalk(
 
     for (const entry of entries) {
       // Never descend into git internals or our own data directory.
-      if (entry.name === '.git' || entry.name === '.codegraph') continue;
+      if (entry.name === '.git' || entry.name === '.codegg') continue;
 
       const fullPath = path.join(dir, entry.name);
       const relativePath = normalizePath(path.relative(rootDir, fullPath));

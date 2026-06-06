@@ -1,5 +1,5 @@
 /**
- * CodeGraph Interactive Installer
+ * CodeGG Interactive Installer
  *
  * Multi-target: writes MCP server config + instructions for the
  * agents the user picks (Claude Code, Cursor, Codex CLI, opencode,
@@ -75,7 +75,7 @@ export interface RunInstallerOptions {
 }
 
 /**
- * Interactive entry point — preserves the historical UX (`codegraph
+ * Interactive entry point — preserves the historical UX (`codegg
  * install` with no args goes through the prompts), but now starts
  * the targets multi-select pre-populated with detected agents.
  */
@@ -86,7 +86,7 @@ export async function runInstaller(): Promise<void> {
 export async function runInstallerWithOptions(opts: RunInstallerOptions): Promise<void> {
   const clack = await importESM('@clack/prompts');
 
-  clack.intro(`CodeGraph v${getVersion()}`);
+  clack.intro(`CodeGG v${getVersion()}`);
 
   // --yes implies all defaults; explicit flags still win.
   const useDefaults = opts.yes === true;
@@ -102,11 +102,11 @@ export async function runInstallerWithOptions(opts: RunInstallerOptions): Promis
     return;
   }
 
-  // Step 2: install the codegraph npm package on PATH (always offered;
+  // Step 2: install the codegg npm package on PATH (always offered;
   // matches existing behavior). Skipped when --yes (assume present).
   if (!useDefaults) {
     const shouldInstallGlobally = await clack.confirm({
-      message: 'Install the codegraph CLI on your PATH? (Required so agents can launch the MCP server)',
+      message: 'Install the codegg CLI on your PATH? (Required so agents can launch the MCP server)',
       initialValue: true,
     });
     if (clack.isCancel(shouldInstallGlobally)) {
@@ -115,13 +115,13 @@ export async function runInstallerWithOptions(opts: RunInstallerOptions): Promis
     }
     if (shouldInstallGlobally) {
       const s = clack.spinner();
-      s.start('Installing codegraph CLI...');
+      s.start('Installing codegg CLI...');
       try {
-        execSync('npm install -g @colbymchenry/codegraph', { stdio: 'pipe', windowsHide: true });
-        s.stop('Installed codegraph CLI on PATH');
+        execSync('npm install -g @colbymchenry/codegg', { stdio: 'pipe', windowsHide: true });
+        s.stop('Installed codegg CLI on PATH');
       } catch {
         s.stop('Could not install (permission denied)');
-        clack.log.warn('Try: sudo npm install -g @colbymchenry/codegraph');
+        clack.log.warn('Try: sudo npm install -g @colbymchenry/codegg');
       }
     } else {
       clack.log.info('Skipped CLI install — agents will not be able to launch the MCP server without it');
@@ -168,7 +168,7 @@ export async function runInstallerWithOptions(opts: RunInstallerOptions): Promis
     autoAllow = true;
   } else if (targets.some((t) => t.id === 'claude')) {
     const ans = await clack.confirm({
-      message: 'Auto-allow CodeGraph commands? (Skips permission prompts in Claude Code)',
+      message: 'Auto-allow CodeGG commands? (Skips permission prompts in Claude Code)',
       initialValue: true,
     });
     if (clack.isCancel(ans)) {
@@ -208,11 +208,11 @@ export async function runInstallerWithOptions(opts: RunInstallerOptions): Promis
   }
 
   if (location === 'global') {
-    clack.note('cd your-project\ncodegraph init -i', 'Quick start');
+    clack.note('cd your-project\ncodegg init -i', 'Quick start');
   }
 
   const finalNote = targets.length > 0
-    ? `Done! Restart your agent${targets.length > 1 ? 's' : ''} to use CodeGraph.`
+    ? `Done! Restart your agent${targets.length > 1 ? 's' : ''} to use CodeGG.`
     : 'Done!';
   clack.outro(finalNote);
 }
@@ -235,7 +235,7 @@ export type UninstallStatus = 'removed' | 'not-configured' | 'unsupported';
 
 /**
  * Per-target outcome of an uninstall sweep. `removed` means we deleted
- * at least one thing; `not-configured` means the agent had no codegraph
+ * at least one thing; `not-configured` means the agent had no codegg
  * config at this location (nothing to do); `unsupported` means the
  * agent has no config concept for this location (e.g. Codex is
  * global-only, so a `local` uninstall skips it).
@@ -295,13 +295,13 @@ export function uninstallTargets(
  * one block per agent so the user sees exactly which providers it hit.
  *
  * Removes only what install wrote (MCP server entry, instructions
- * block, permissions) — never the `.codegraph/` index, which `codegraph
+ * block, permissions) — never the `.codegg/` index, which `codegg
  * uninit` owns.
  */
 export async function runUninstaller(opts: RunUninstallerOptions): Promise<void> {
   const clack = await importESM('@clack/prompts');
 
-  clack.intro(`CodeGraph v${getVersion()} — uninstall`);
+  clack.intro(`CodeGG v${getVersion()} — uninstall`);
 
   const useDefaults = opts.yes === true;
 
@@ -315,7 +315,7 @@ export async function runUninstaller(opts: RunUninstallerOptions): Promise<void>
     location = 'global';
   } else {
     const sel = await clack.select({
-      message: 'Remove CodeGraph from all your projects, or just this one?',
+      message: 'Remove CodeGG from all your projects, or just this one?',
       options: [
         { value: 'global' as const, label: 'All projects (global)', hint: '~/.claude, ~/.cursor, ~/.codex, ~/.config/opencode, ~/.hermes, ~/.gemini, ~/.kiro' },
         { value: 'local'  as const, label: 'Just this project (local)', hint: './.claude, ./.cursor, ./opencode.jsonc, ./.gemini, ./.kiro' },
@@ -362,19 +362,19 @@ export async function runUninstaller(opts: RunUninstallerOptions): Promise<void>
 
   // Step 4: for local uninstall, the index dir is separate — point at
   // `uninit` so the user knows it's still there (and how to remove it).
-  if (location === 'local' && fs.existsSync(path.join(process.cwd(), '.codegraph'))) {
-    clack.log.info('The .codegraph/ index for this project is still here. Run `codegraph uninit` to delete it.');
+  if (location === 'local' && fs.existsSync(path.join(process.cwd(), '.codegg'))) {
+    clack.log.info('The .codegg/ index for this project is still here. Run `codegg uninit` to delete it.');
   }
 
   // Step 5: summary.
   if (removed.length > 0) {
     const names = removed.map((r) => r.displayName).join(', ');
     clack.outro(
-      `Removed CodeGraph from ${removed.length} agent${removed.length > 1 ? 's' : ''}: ${names}. ` +
+      `Removed CodeGG from ${removed.length} agent${removed.length > 1 ? 's' : ''}: ${names}. ` +
       `Restart ${removed.length > 1 ? 'them' : 'it'} to apply.`,
     );
   } else {
-    clack.outro(`CodeGraph was not configured in any ${location} agent — nothing to remove.`);
+    clack.outro(`CodeGG was not configured in any ${location} agent — nothing to remove.`);
   }
 }
 
@@ -414,7 +414,7 @@ async function resolveTargets(
   const initial = initialValues.length > 0 ? initialValues : ['claude'];
 
   const choice = await clack.multiselect<string>({
-    message: 'Which agents should CodeGraph configure?',
+    message: 'Which agents should CodeGG configure?',
     options: ALL_TARGETS.map((t) => {
       const det = detected.find(({ target }) => target.id === t.id)!.detection;
       const flag = det.installed ? '(detected)' : '(not found)';
@@ -439,7 +439,7 @@ async function resolveTargets(
 }
 
 /**
- * Initialize CodeGraph in the current project (for local installs), then
+ * Initialize CodeGG in the current project (for local installs), then
  * offer the watch fallback when the live watcher won't run here (see
  * offerWatchFallback). Agent-agnostic by nature.
  */
@@ -449,26 +449,26 @@ async function initializeLocalProject(
 ): Promise<void> {
   const projectPath = process.cwd();
 
-  let CodeGraph: typeof import('../index').default;
+  let CodeGG: typeof import('../index').default;
   try {
-    CodeGraph = (await import('../index')).default;
+    CodeGG = (await import('../index')).default;
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     clack.log.error(`Could not load native modules: ${msg}`);
-    clack.log.info('Skipping project initialization. Run "codegraph init -i" later.');
+    clack.log.info('Skipping project initialization. Run "codegg init -i" later.');
     return;
   }
 
   // Check if already initialized
-  if (CodeGraph.isInitialized(projectPath)) {
-    clack.log.info('CodeGraph already initialized in this project');
+  if (CodeGG.isInitialized(projectPath)) {
+    clack.log.info('CodeGG already initialized in this project');
     await offerWatchFallback(clack, projectPath, { yes: useDefaults });
     return;
   }
 
   // Initialize
-  const cg = await CodeGraph.init(projectPath);
-  clack.log.success('Created .codegraph/ directory');
+  const cg = await CodeGG.init(projectPath);
+  clack.log.success('Created .codegg/ directory');
 
   // Index the project with shimmer progress (worker thread for smooth animation)
   const { createShimmerProgress } = await import('../ui/shimmer-progress');
@@ -494,9 +494,9 @@ async function initializeLocalProject(
 
 /**
  * When the live file watcher will be disabled for this project (e.g. WSL2
- * /mnt drives, or CODEGRAPH_NO_WATCH), the index would silently go stale.
+ * /mnt drives, or CODEGG_NO_WATCH), the index would silently go stale.
  * Explain that, and offer to keep it fresh automatically via git hooks
- * (commit / pull / checkout) instead of manual `codegraph sync`.
+ * (commit / pull / checkout) instead of manual `codegg sync`.
  *
  * No-op on environments where the watcher runs normally, so it's safe to
  * call unconditionally after init.
@@ -510,11 +510,11 @@ export async function offerWatchFallback(
   if (!reason) return; // Watcher runs normally — nothing to set up.
 
   clack.log.warn(`Live file watching is disabled here — ${reason}.`);
-  clack.log.info('Until you re-sync, the CodeGraph index stays frozen — it will not pick up edits on its own.');
+  clack.log.info('Until you re-sync, the CodeGG index stays frozen — it will not pick up edits on its own.');
 
   // No git repo → the commit-hook path doesn't apply; point at manual sync.
   if (!isGitRepo(projectPath)) {
-    clack.log.info('Run `codegraph sync` after changing files to refresh the index.');
+    clack.log.info('Run `codegg sync` after changing files to refresh the index.');
     return;
   }
 
@@ -529,22 +529,22 @@ export async function offerWatchFallback(
     choice = 'hook';
   } else {
     const sel = await clack.select({
-      message: 'How should CodeGraph keep its index fresh?',
+      message: 'How should CodeGG keep its index fresh?',
       options: [
         { value: 'hook' as const, label: 'Sync on git commit / pull / checkout', hint: 'installs git hooks (recommended)' },
-        { value: 'manual' as const, label: 'I\'ll run `codegraph sync` myself', hint: 'fully manual' },
+        { value: 'manual' as const, label: 'I\'ll run `codegg sync` myself', hint: 'fully manual' },
       ],
       initialValue: 'hook' as const,
     });
     if (clack.isCancel(sel)) {
-      clack.log.info('Skipped — run `codegraph sync` after changes to refresh the index.');
+      clack.log.info('Skipped — run `codegg sync` after changes to refresh the index.');
       return;
     }
     choice = sel;
   }
 
   if (choice === 'manual') {
-    clack.log.info('Run `codegraph sync` after changing files to refresh the index.');
+    clack.log.info('Run `codegg sync` after changing files to refresh the index.');
     return;
   }
 
@@ -554,11 +554,11 @@ export async function offerWatchFallback(
       `Installed git ${result.installed.join(', ')} hook${result.installed.length > 1 ? 's' : ''} — ` +
       'the index refreshes in the background after each.',
     );
-    clack.log.info('Run `codegraph sync` anytime to refresh immediately.');
+    clack.log.info('Run `codegg sync` anytime to refresh immediately.');
   } else {
     clack.log.warn(
       `Could not install git hooks${result.skipped ? ` (${result.skipped})` : ''}. ` +
-      'Run `codegraph sync` after changes instead.',
+      'Run `codegg sync` after changes instead.',
     );
   }
 }

@@ -1,17 +1,17 @@
 /**
  * MCP Tool Definitions
  *
- * Defines the tools exposed by the CodeGraph MCP server.
+ * Defines the tools exposed by the CodeGG MCP server.
  */
 
-import type CodeGraph from '../index';
-import { findNearestCodeGraphRoot } from '../directory';
-// Lazy-load the heavy CodeGraph chain off the MCP startup path — see the same
+import type CodeGG from '../index';
+import { findNearestCodeGGRoot } from '../directory';
+// Lazy-load the heavy CodeGG chain off the MCP startup path — see the same
 // helper in engine.ts. ToolHandler must load to answer tools/list (static
 // schemas), but it must NOT drag in sqlite/query layers before the daemon binds;
-// CodeGraph is pulled in only when a tool actually opens a project. require() is
+// CodeGG is pulled in only when a tool actually opens a project. require() is
 // sync + cached (CommonJS build).
-const loadCodeGraph = (): typeof import('../index').default =>
+const loadCodeGG = (): typeof import('../index').default =>
   (require('../index') as typeof import('../index')).default;
 import {
   detectWorktreeIndexMismatch,
@@ -59,7 +59,7 @@ const MAX_PATH_LENGTH = 4_096;
 const RUST_PATH_PREFIXES = new Set(['crate', 'super', 'self']);
 
 /**
- * Node kinds that contain other symbols. For these, `codegraph_node` with
+ * Node kinds that contain other symbols. For these, `codegg_node` with
  * `includeCode=true` returns a structural outline (member names + signatures
  * + line numbers) instead of the full body, which for a large class is a
  * multi-thousand-character wall of source that bloats the agent's context.
@@ -75,7 +75,7 @@ function lastQualifierPart(symbol: string): string {
 }
 
 /**
- * Calculate the recommended number of codegraph_explore calls based on project size.
+ * Calculate the recommended number of codegg_explore calls based on project size.
  * Larger codebases need more exploration calls to cover their surface area,
  * but smaller ones should use fewer to avoid unnecessary overhead.
  */
@@ -88,7 +88,7 @@ export function getExploreBudget(fileCount: number): number {
 }
 
 /**
- * Adaptive output budget for `codegraph_explore`, scaled to project size.
+ * Adaptive output budget for `codegg_explore`, scaled to project size.
  *
  * Smaller codebases get a tighter total cap, fewer default files, smaller
  * per-file cap, and tighter clustering — so a focused query on a 100-file
@@ -238,22 +238,22 @@ export function getExploreOutputBudget(fileCount: number): ExploreOutputBudget {
 }
 
 /**
- * Whether `codegraph_explore` should prefix source lines with their line
+ * Whether `codegg_explore` should prefix source lines with their line
  * numbers (cat -n style: `<num>\t<code>`).
  *
  * Line numbers let the agent cite `file:line` straight from the explore
  * payload instead of re-Reading the file just to find a line number — the
  * dominant residual cost on precise-tracing questions (#185 follow-up).
  *
- * Defaults ON. Set `CODEGRAPH_EXPLORE_LINENUMS=0` to disable (used by the
+ * Defaults ON. Set `CODEGG_EXPLORE_LINENUMS=0` to disable (used by the
  * A/B harness to measure the payload-cost vs. read-savings tradeoff).
  */
 function exploreLineNumbersEnabled(): boolean {
-  return process.env.CODEGRAPH_EXPLORE_LINENUMS !== '0';
+  return process.env.CODEGG_EXPLORE_LINENUMS !== '0';
 }
 
 /**
- * Adaptive explore sizing (default ON). `codegraph_explore` skeletonizes OFF-SPINE
+ * Adaptive explore sizing (default ON). `codegg_explore` skeletonizes OFF-SPINE
  * polymorphic-sibling files — a file whose class is one of ≥3 interchangeable
  * implementations of a shared interface (e.g. OkHttp's `: Interceptor` classes) —
  * to class + member signatures (bodies elided), keeping the on-spine exemplar full.
@@ -262,10 +262,10 @@ function exploreLineNumbersEnabled(): boolean {
  * search, reads flat). It is PROVABLY INERT elsewhere: distinct pipeline steps (no
  * ≥3-implementer supertype, e.g. Excalidraw's `renderStaticScene`) and on-spine
  * files keep full source — output is byte-identical to shipped on excalidraw /
- * tokio / django / vscode / gin. Set `CODEGRAPH_ADAPTIVE_EXPLORE=0` to disable.
+ * tokio / django / vscode / gin. Set `CODEGG_ADAPTIVE_EXPLORE=0` to disable.
  */
 function adaptiveExploreEnabled(): boolean {
-  return process.env.CODEGRAPH_ADAPTIVE_EXPLORE !== '0' && process.env.CODEGRAPH_ADAPTIVE_EXPLORE !== 'false';
+  return process.env.CODEGG_ADAPTIVE_EXPLORE !== '0' && process.env.CODEGG_ADAPTIVE_EXPLORE !== 'false';
 }
 
 /**
@@ -300,7 +300,7 @@ export function formatStaleBanner(stale: PendingFile[]): string {
   });
   return (
     '⚠️ Some files referenced below were edited since the last index sync — ' +
-    'their codegraph entries may be stale:\n' +
+    'their codegg entries may be stale:\n' +
     lines.join('\n') +
     '\nFor accurate content of those specific files, Read them directly. ' +
     'The rest of this response is fresh.'
@@ -363,13 +363,13 @@ export interface ToolResult {
  */
 const projectPathProperty: PropertySchema = {
   type: 'string',
-  description: 'Path to a different project with .codegraph/ initialized. If omitted, uses current project. Use this to query other codebases.',
+  description: 'Path to a different project with .codegg/ initialized. If omitted, uses current project. Use this to query other codebases.',
 };
 
 /**
- * All CodeGraph MCP tools
+ * All CodeGG MCP tools
  *
- * Designed for minimal context usage - use codegraph_explore as the primary tool
+ * Designed for minimal context usage - use codegg_explore as the primary tool
  * (one call usually answers the whole question), and only use other tools for
  * targeted follow-up queries.
  *
@@ -377,8 +377,8 @@ const projectPathProperty: PropertySchema = {
  */
 export const tools: ToolDefinition[] = [
   {
-    name: 'codegraph_search',
-    description: 'Quick symbol search by name. Returns locations only (no code). Use codegraph_explore instead to get the actual source / understand an area in one call.',
+    name: 'codegg_search',
+    description: 'Quick symbol search by name. Returns locations only (no code). Use codegg_explore instead to get the actual source / understand an area in one call.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -402,8 +402,8 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_callers',
-    description: 'List functions that call <symbol>. For the full flow, use codegraph_explore.',
+    name: 'codegg_callers',
+    description: 'List functions that call <symbol>. For the full flow, use codegg_explore.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -422,8 +422,8 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_callees',
-    description: 'List functions that <symbol> calls. For the full flow, use codegraph_explore.',
+    name: 'codegg_callees',
+    description: 'List functions that <symbol> calls. For the full flow, use codegg_explore.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -442,7 +442,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_impact',
+    name: 'codegg_impact',
     description: 'List symbols affected by changing <symbol>. Use before a refactor.',
     inputSchema: {
       type: 'object',
@@ -462,8 +462,8 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_node',
-    description: 'SECONDARY (after codegraph_explore): get ONE symbol in full — its location, signature, callers/callees trail, and verbatim body (includeCode=true). When the name is AMBIGUOUS (an overloaded method, or the same method name on different types), it returns EVERY matching definition\'s full body in a single call — so you never need to Read a file to find the specific overload you want. For a heavily-overloaded name, pass `file` (and/or `line`) to pin the exact definition — e.g. the `file:line` a trail or another tool already showed you. Reach for this when explore trimmed a body you need. Use codegraph_explore for several related symbols or the full flow.',
+    name: 'codegg_node',
+    description: 'SECONDARY (after codegg_explore): get ONE symbol in full — its location, signature, callers/callees trail, and verbatim body (includeCode=true). When the name is AMBIGUOUS (an overloaded method, or the same method name on different types), it returns EVERY matching definition\'s full body in a single call — so you never need to Read a file to find the specific overload you want. For a heavily-overloaded name, pass `file` (and/or `line`) to pin the exact definition — e.g. the `file:line` a trail or another tool already showed you. Reach for this when explore trimmed a body you need. Use codegg_explore for several related symbols or the full flow.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -490,14 +490,14 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_explore',
+    name: 'codegg_explore',
     description: 'PRIMARY TOOL — call FIRST for almost any question: how does X work, architecture, a bug, where/what is X, or surveying an area. Returns the verbatim source of the relevant symbols grouped by file in ONE capped call (Read-equivalent — do NOT re-open shown files). Query can be a natural-language question OR a bag of symbol/file names. Usually the ONLY call you need — answers without further search/node/Read/Grep.',
     inputSchema: {
       type: 'object',
       properties: {
         query: {
           type: 'string',
-          description: 'Symbol names, file names, or short code terms to explore (e.g., "AuthService loginUser session-manager", "GraphTraverser BFS impact traversal.ts"). Use codegraph_search first to find relevant names.',
+          description: 'Symbol names, file names, or short code terms to explore (e.g., "AuthService loginUser session-manager", "GraphTraverser BFS impact traversal.ts"). Use codegg_search first to find relevant names.',
         },
         maxFiles: {
           type: 'number',
@@ -510,7 +510,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_status',
+    name: 'codegg_status',
     description: 'Index health check (files / nodes / edges). Skip unless debugging.',
     inputSchema: {
       type: 'object',
@@ -520,7 +520,7 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
-    name: 'codegraph_files',
+    name: 'codegg_files',
     description: 'Indexed file tree with language + symbol counts. Faster than Glob for project layout.',
     inputSchema: {
       type: 'object',
@@ -557,31 +557,31 @@ export const tools: ToolDefinition[] = [
 /**
  * Allowlist-filtered tool definitions WITHOUT an engine — the static surface the
  * proxy answers `tools/list` with before any project is open. Mirrors
- * `ToolHandler.getTools()` in the no-CodeGraph case (the dynamic per-repo budget
+ * `ToolHandler.getTools()` in the no-CodeGG case (the dynamic per-repo budget
  * note in a description only adds once `cg` is loaded; the schemas are static).
  */
 export function getStaticTools(): ToolDefinition[] {
-  const raw = process.env.CODEGRAPH_MCP_TOOLS;
+  const raw = process.env.CODEGG_MCP_TOOLS;
   if (!raw || !raw.trim()) return tools;
-  const allow = new Set(raw.split(',').map(s => s.trim().replace(/^codegraph_/, '')).filter(Boolean));
-  return allow.size ? tools.filter(t => allow.has(t.name.replace(/^codegraph_/, ''))) : tools;
+  const allow = new Set(raw.split(',').map(s => s.trim().replace(/^codegg_/, '')).filter(Boolean));
+  return allow.size ? tools.filter(t => allow.has(t.name.replace(/^codegg_/, ''))) : tools;
 }
 
 /**
- * Tool handler that executes tools against a CodeGraph instance
+ * Tool handler that executes tools against a CodeGG instance
  *
  * Supports cross-project queries via the projectPath parameter.
  * Other projects are opened on-demand and cached for performance.
  */
 export class ToolHandler {
-  // Cache of opened CodeGraph instances for cross-project queries
-  private projectCache: Map<string, CodeGraph> = new Map();
+  // Cache of opened CodeGG instances for cross-project queries
+  private projectCache: Map<string, CodeGG> = new Map();
   // The directory the server last searched for a default project. Surfaced in
   // the "not initialized" error so users can see why detection missed.
   private defaultProjectHint: string | null = null;
   // Per-start-path cache of the git worktree/index mismatch (issue #155). The
   // mismatch is a fixed property of (where the request came from → which
-  // .codegraph/ it resolves to), so the up-to-two `git rev-parse` spawns run
+  // .codegg/ it resolves to), so the up-to-two `git rev-parse` spawns run
   // once and every later tool call reuses the result — never shelling out to
   // git on the hot path. `undefined` = not computed yet; `null` = no mismatch.
   private worktreeMismatchCache: Map<string, WorktreeIndexMismatch | null> = new Map();
@@ -594,12 +594,12 @@ export class ToolHandler {
   // subsequent calls don't pay any cost.
   private catchUpGate: Promise<void> | null = null;
 
-  constructor(private cg: CodeGraph | null) {}
+  constructor(private cg: CodeGG | null) {}
 
   /**
-   * Update the default CodeGraph instance (e.g. after lazy initialization)
+   * Update the default CodeGG instance (e.g. after lazy initialization)
    */
-  setDefaultCodeGraph(cg: CodeGraph): void {
+  setDefaultCodeGG(cg: CodeGG): void {
     this.cg = cg;
   }
 
@@ -623,44 +623,44 @@ export class ToolHandler {
   }
 
   /**
-   * Whether a default CodeGraph instance is available
+   * Whether a default CodeGG instance is available
    */
-  hasDefaultCodeGraph(): boolean {
+  hasDefaultCodeGG(): boolean {
     return this.cg !== null;
   }
 
   /**
-   * Optional allowlist of exposed tools, parsed from the CODEGRAPH_MCP_TOOLS
+   * Optional allowlist of exposed tools, parsed from the CODEGG_MCP_TOOLS
    * env var (comma-separated short names, e.g. "trace,search,node,context").
    * Unset/empty → every tool is exposed. Lets an operator (or an A/B harness)
    * trim the tool surface without rebuilding the client config; the ablated
    * tool is then truly absent from ListTools rather than merely denied on call.
-   * Matching is on the short form, so "node" and "codegraph_node" both work.
+   * Matching is on the short form, so "node" and "codegg_node" both work.
    */
   private toolAllowlist(): Set<string> | null {
-    const raw = process.env.CODEGRAPH_MCP_TOOLS;
+    const raw = process.env.CODEGG_MCP_TOOLS;
     if (!raw || !raw.trim()) return null;
-    const short = (s: string) => s.trim().replace(/^codegraph_/, '');
+    const short = (s: string) => s.trim().replace(/^codegg_/, '');
     const set = new Set(raw.split(',').map(short).filter(Boolean));
     return set.size ? set : null;
   }
 
-  /** Whether a tool name passes the CODEGRAPH_MCP_TOOLS allowlist (if any). */
+  /** Whether a tool name passes the CODEGG_MCP_TOOLS allowlist (if any). */
   private isToolAllowed(name: string): boolean {
     const allow = this.toolAllowlist();
-    return !allow || allow.has(name.replace(/^codegraph_/, ''));
+    return !allow || allow.has(name.replace(/^codegg_/, ''));
   }
 
   /**
    * Get tool definitions with dynamic descriptions based on project size.
-   * The codegraph_explore tool description includes a budget recommendation
-   * scaled to the number of indexed files. Honors the CODEGRAPH_MCP_TOOLS
+   * The codegg_explore tool description includes a budget recommendation
+   * scaled to the number of indexed files. Honors the CODEGG_MCP_TOOLS
    * allowlist so a trimmed surface is reflected in ListTools.
    */
   getTools(): ToolDefinition[] {
     const allow = this.toolAllowlist();
     let visible = allow
-      ? tools.filter(t => allow.has(t.name.replace(/^codegraph_/, '')))
+      ? tools.filter(t => allow.has(t.name.replace(/^codegg_/, '')))
       : tools;
     if (!this.cg) return visible;
 
@@ -676,7 +676,7 @@ export class ToolHandler {
       // n=2 audits ruled out cutting below 5 tools:
       // - 3-tool gate (search + context + trace): cost regressed on
       //   cobra/ky/sinatra. The agent fell back to raw Reads to cover
-      //   what codegraph_node + codegraph_explore would have answered.
+      //   what codegg_node + codegg_explore would have answered.
       // - 1-tool gate (search only): catastrophic regression — express
       //   went from -43% WIN to +107% LOSS. With only search, the agent
       //   can't navigate the call graph structurally and reads everything.
@@ -692,16 +692,16 @@ export class ToolHandler {
       // so it deserves the same gating.
       const TINY_REPO_FILE_THRESHOLD = 500;
       const TINY_REPO_CORE_TOOLS = new Set([
-        'codegraph_explore',
-        'codegraph_search',
-        'codegraph_node',
+        'codegg_explore',
+        'codegg_search',
+        'codegg_node',
       ]);
       if (stats.fileCount < TINY_REPO_FILE_THRESHOLD) {
         visible = visible.filter(t => TINY_REPO_CORE_TOOLS.has(t.name));
       }
 
       return visible.map(tool => {
-        if (tool.name === 'codegraph_explore') {
+        if (tool.name === 'codegg_explore') {
           return {
             ...tool,
             description: `${tool.description} Budget: make at most ${budget} calls for this project (${stats.fileCount.toLocaleString()} files indexed).`,
@@ -715,21 +715,21 @@ export class ToolHandler {
   }
 
   /**
-   * Get CodeGraph instance for a project
+   * Get CodeGG instance for a project
    *
-   * If projectPath is provided, opens that project's CodeGraph (cached).
-   * Otherwise returns the default CodeGraph instance.
+   * If projectPath is provided, opens that project's CodeGG (cached).
+   * Otherwise returns the default CodeGG instance.
    *
-   * Walks up parent directories to find the nearest .codegraph/ folder,
+   * Walks up parent directories to find the nearest .codegg/ folder,
    * similar to how git finds .git/ directories.
    */
-  private getCodeGraph(projectPath?: string): CodeGraph {
+  private getCodeGG(projectPath?: string): CodeGG {
     if (!projectPath) {
       if (!this.cg) {
         const searched = this.defaultProjectHint ?? process.cwd();
         throw new Error(
-          'No CodeGraph project is loaded for this session.\n' +
-          `Searched for a .codegraph/ directory starting from: ${searched}\n` +
+          'No CodeGG project is loaded for this session.\n' +
+          `Searched for a .codegg/ directory starting from: ${searched}\n` +
           'The index is likely fine — this is a working-directory detection issue: ' +
           "the MCP client launched the server outside your project and didn't report the " +
           'workspace root. Fix it either way:\n' +
@@ -747,7 +747,7 @@ export class ToolHandler {
 
     // Reject sensitive system directories before opening. Only validate a
     // path that actually exists — a nested or not-yet-created sub-path of a
-    // real project must still be allowed to resolve UP to its .codegraph/
+    // real project must still be allowed to resolve UP to its .codegg/
     // root below (issue #238), so we don't run the existence-checking
     // validator on paths that are meant to walk up.
     if (existsSync(projectPath)) {
@@ -757,11 +757,11 @@ export class ToolHandler {
       }
     }
 
-    // Walk up parent directories to find nearest .codegraph/
-    const resolvedRoot = findNearestCodeGraphRoot(projectPath);
+    // Walk up parent directories to find nearest .codegg/
+    const resolvedRoot = findNearestCodeGGRoot(projectPath);
 
     if (!resolvedRoot) {
-      throw new Error(`CodeGraph not initialized in ${projectPath}. Run 'codegraph init' in that project first.`);
+      throw new Error(`CodeGG not initialized in ${projectPath}. Run 'codegg init' in that project first.`);
     }
 
     // If the path resolves to the default project, reuse the already-open
@@ -784,7 +784,7 @@ export class ToolHandler {
     }
 
     // Open and cache under both paths
-    const cg = loadCodeGraph().openSync(resolvedRoot);
+    const cg = loadCodeGG().openSync(resolvedRoot);
     this.projectCache.set(resolvedRoot, cg);
     if (projectPath !== resolvedRoot) {
       this.projectCache.set(projectPath, cg);
@@ -864,7 +864,7 @@ export class ToolHandler {
 
     let mismatch: WorktreeIndexMismatch | null = null;
     try {
-      mismatch = detectWorktreeIndexMismatch(startPath, this.getCodeGraph(projectPath).getProjectRoot());
+      mismatch = detectWorktreeIndexMismatch(startPath, this.getCodeGG(projectPath).getProjectRoot());
     } catch {
       // No resolvable project (or any other resolution error) → nothing to warn.
       mismatch = null;
@@ -878,7 +878,7 @@ export class ToolHandler {
    * notice when the resolved index belongs to a different git working tree than
    * the caller's (issue #155). Without this, an agent in a nested worktree
    * silently trusts main-branch results. No-op on error results and when there
-   * is no mismatch. `codegraph_status` is excluded — it embeds its own verbose
+   * is no mismatch. `codegg_status` is excluded — it embeds its own verbose
    * warning — so it stays out of this path.
    */
   private withWorktreeNotice(result: ToolResult, projectPath?: string): ToolResult {
@@ -910,14 +910,14 @@ export class ToolHandler {
   private withStalenessNotice(result: ToolResult, projectPath?: string): ToolResult {
     if (result.isError) return result;
 
-    let cg: CodeGraph;
+    let cg: CodeGG;
     try {
-      cg = this.getCodeGraph(projectPath);
+      cg = this.getCodeGG(projectPath);
     } catch {
       return result; // no default project — leave as is
     }
 
-    // Cross-project `projectPath` calls open a cached CodeGraph WITHOUT a
+    // Cross-project `projectPath` calls open a cached CodeGG WITHOUT a
     // watcher (watchers are only attached to the default session project).
     // When the cross-project path happens to be the same project as the
     // default cg, the cached instance is the wrong one — its pendingFiles is
@@ -934,7 +934,7 @@ export class ToolHandler {
       }
     }
 
-    // Defensive: some test fakes inject a partial CodeGraph stub without the
+    // Defensive: some test fakes inject a partial CodeGG stub without the
     // newer pending-files API. Treat missing/throwing as "no pending files."
     let pending: PendingFile[] = [];
     try {
@@ -952,7 +952,7 @@ export class ToolHandler {
     const elsewhere: PendingFile[] = [];
     for (const p of pending) {
       // Substring match against the project-relative POSIX path — that's
-      // exactly the format both the watcher and every codegraph response
+      // exactly the format both the watcher and every codegg response
       // emit, so a plain includes() is sufficient and avoids regex pitfalls.
       if (text.includes(p.path)) inResponse.push(p);
       else elsewhere.push(p);
@@ -987,10 +987,10 @@ export class ToolHandler {
         this.catchUpGate = null;
         try { await gate; } catch { /* engine already logged */ }
       }
-      // Honor the optional tool allowlist (CODEGRAPH_MCP_TOOLS): a trimmed
+      // Honor the optional tool allowlist (CODEGG_MCP_TOOLS): a trimmed
       // surface rejects ablated tools defensively even if a client cached them.
       if (!this.isToolAllowed(toolName)) {
-        return this.errorResult(`Tool ${toolName} is disabled via CODEGRAPH_MCP_TOOLS`);
+        return this.errorResult(`Tool ${toolName} is disabled via CODEGG_MCP_TOOLS`);
       }
       // Cross-cutting input validation. All tools accept an optional
       // `projectPath` and most accept either `query`, `task`, or
@@ -1000,7 +1000,7 @@ export class ToolHandler {
       if (typeof pathCheck === 'object' && pathCheck !== undefined) {
         return pathCheck;
       }
-      // The `path` and `pattern` properties used by codegraph_files are
+      // The `path` and `pattern` properties used by codegg_files are
       // also path-shaped — apply the same cap.
       if (args.path !== undefined) {
         const check = this.validateOptionalPath(args.path, 'path');
@@ -1019,24 +1019,24 @@ export class ToolHandler {
       // with what the read tools surface.
       let result: ToolResult;
       switch (toolName) {
-        case 'codegraph_search':
+        case 'codegg_search':
           result = await this.handleSearch(args); break;
-        case 'codegraph_callers':
+        case 'codegg_callers':
           result = await this.handleCallers(args); break;
-        case 'codegraph_callees':
+        case 'codegg_callees':
           result = await this.handleCallees(args); break;
-        case 'codegraph_impact':
+        case 'codegg_impact':
           result = await this.handleImpact(args); break;
-        case 'codegraph_explore':
+        case 'codegg_explore':
           result = await this.handleExplore(args); break;
-        case 'codegraph_node':
+        case 'codegg_node':
           result = await this.handleNode(args); break;
-        case 'codegraph_status':
+        case 'codegg_status':
           // status embeds the pending-files list as a first-class section
           // (see handleStatus), so we skip the auto-banner wrapper here to
           // avoid duplicating the same info at the top of the response.
           return await this.handleStatus(args);
-        case 'codegraph_files':
+        case 'codegg_files':
           result = await this.handleFiles(args); break;
         default:
           return this.errorResult(`Unknown tool: ${toolName}`);
@@ -1049,13 +1049,13 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_search
+   * Handle codegg_search
    */
   private async handleSearch(args: Record<string, unknown>): Promise<ToolResult> {
     const query = this.validateString(args.query, 'query');
     if (typeof query !== 'string') return query;
 
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     const kind = args.kind as string | undefined;
     const rawLimit = Number(args.limit) || 10;
     const limit = clamp(rawLimit, 1, 100);
@@ -1083,13 +1083,13 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_callers
+   * Handle codegg_callers
    */
   private async handleCallers(args: Record<string, unknown>): Promise<ToolResult> {
     const symbol = this.validateString(args.symbol, 'symbol');
     if (typeof symbol !== 'string') return symbol;
 
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     const limit = clamp((args.limit as number) || 20, 1, 100);
 
     const allMatches = this.findAllSymbols(cg, symbol);
@@ -1118,13 +1118,13 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_callees
+   * Handle codegg_callees
    */
   private async handleCallees(args: Record<string, unknown>): Promise<ToolResult> {
     const symbol = this.validateString(args.symbol, 'symbol');
     if (typeof symbol !== 'string') return symbol;
 
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     const limit = clamp((args.limit as number) || 20, 1, 100);
 
     const allMatches = this.findAllSymbols(cg, symbol);
@@ -1153,13 +1153,13 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_impact
+   * Handle codegg_impact
    */
   private async handleImpact(args: Record<string, unknown>): Promise<ToolResult> {
     const symbol = this.validateString(args.symbol, 'symbol');
     if (typeof symbol !== 'string') return symbol;
 
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     const depth = clamp((args.depth as number) || 2, 1, 10);
 
     const allMatches = this.findAllSymbols(cg, symbol);
@@ -1266,7 +1266,7 @@ export class ToolHandler {
   }
 
   /**
-   * Flow-from-named-symbols: an agent's codegraph_explore query is a bag of
+   * Flow-from-named-symbols: an agent's codegg_explore query is a bag of
    * symbol names that usually spans the flow it's investigating (e.g.
    * "PmsProductController getList PmsProductService list PmsProductServiceImpl").
    * Surface the longest call chain AMONG those named symbols — scoped to what the
@@ -1279,7 +1279,7 @@ export class ToolHandler {
    * whose qualifiedName contains another named token (`PmsProductServiceImpl::list`),
    * dropping unrelated `OmsOrderService::list`.
    */
-  private buildFlowFromNamedSymbols(cg: CodeGraph, query: string): { text: string; pathNodeIds: Set<string>; namedNodeIds: Set<string>; uniqueNamedNodeIds: Set<string> } {
+  private buildFlowFromNamedSymbols(cg: CodeGG, query: string): { text: string; pathNodeIds: Set<string>; namedNodeIds: Set<string>; uniqueNamedNodeIds: Set<string> } {
     const EMPTY = { text: '', pathNodeIds: new Set<string>(), namedNodeIds: new Set<string>(), uniqueNamedNodeIds: new Set<string>() };
     try {
       const CALLABLE = new Set(['method', 'function', 'component', 'constructor']);
@@ -1425,7 +1425,7 @@ export class ToolHandler {
    * that have no dependents (nothing to warn about), and returns '' when none
    * qualify so a leaf-only exploration stays clean.
    */
-  private buildBlastRadiusSection(cg: CodeGraph, subgraph: Subgraph): string {
+  private buildBlastRadiusSection(cg: CodeGG, subgraph: Subgraph): string {
     const ROOT_CAP = 5; // only the symbols the query actually targeted
     const FILE_CAP = 4; // caller files listed per symbol before "+N more"
     const MEANINGFUL = new Set<string>([
@@ -1482,7 +1482,7 @@ export class ToolHandler {
    * PageRank) from the query's matched SEED nodes over the call/reference graph.
    *
    * This is the ranking signal text search (FTS/bm25) CANNOT provide, and it's
-   * codegraph's home turf: relevance by STRUCTURE, not words. A file whose
+   * codegg's home turf: relevance by STRUCTURE, not words. A file whose
    * symbols are call-connected to the matched cluster accrues walk mass and
    * ranks high; a lone TEXT match — e.g. `LensSwitcher.swift` matched the word
    * "switch" from `switchOrganization`, but calls none of `setUser`/`fetchUser`
@@ -1549,11 +1549,11 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_explore — deep exploration in a single call
+   * Handle codegg_explore — deep exploration in a single call
    *
    * Strategy: find relevant symbols via graph traversal, group by file,
    * then read contiguous file sections covering all symbols per file.
-   * This replaces multiple codegraph_node + Read calls.
+   * This replaces multiple codegg_node + Read calls.
    *
    * Output size is adaptive to project file count via
    * `getExploreOutputBudget` — see #185 for why a fixed 35k cap was a
@@ -1563,7 +1563,7 @@ export class ToolHandler {
     const query = this.validateString(args.query, 'query');
     if (typeof query !== 'string') return query;
 
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     const projectRoot = cg.getProjectRoot();
 
     // Resolve adaptive output budget from project size. Falls back to the
@@ -1660,7 +1660,7 @@ export class ToolHandler {
         // 50+-overload name (tokio `poll`) ranks the wanted def (`Harness::poll`)
         // below the FTS cut, so findAllSymbols would never see it and the
         // type-token bias below couldn't pick the harness.rs one. (Same fix as
-        // codegraph_node's findSymbolMatches.) Qualified tokens keep findAllSymbols.
+        // codegg_node's findSymbolMatches.) Qualified tokens keep findAllSymbols.
         const isQual = /[.\/]|::/.test(t);
         const raw = isQual ? this.findAllSymbols(cg, t).nodes : cg.getNodesByName(t);
         const cands = raw
@@ -1671,7 +1671,7 @@ export class ToolHandler {
         // only: the overloads whose file/class the query ALSO names (the agent
         // told us which one it wants — DataRequest's, not Validation.swift's),
         // capped; else fall back to the single most-substantive def. This is the
-        // explore-side mirror of codegraph_node's overload disambiguation.
+        // explore-side mirror of codegg_node's overload disambiguation.
         let picks: Node[];
         if (cands.length <= 3) {
           picks = cands;
@@ -2042,7 +2042,7 @@ export class ToolHandler {
       const fileLines = fileContent.split('\n');
       const lang = group.nodes[0]?.language || '';
 
-      // Adaptive sizing (CODEGRAPH_ADAPTIVE_EXPLORE, default on): collapse a file
+      // Adaptive sizing (CODEGG_ADAPTIVE_EXPLORE, default on): collapse a file
       // to a per-symbol view when it's a redundant member of a polymorphic family.
       // Engages iff ALL hold:
       //   1. a flow spine exists,
@@ -2143,15 +2143,15 @@ export class ToolHandler {
         if (skel.length > 0) {
           const names = [...new Set(group.nodes.filter(n => n.kind !== 'import' && n.kind !== 'export').map(n => n.name))]
             .slice(0, budget.maxSymbolsInFileHeader).join(', ');
-          // Steer the agent to codegraph_explore for an elided body — NEVER to
+          // Steer the agent to codegg_explore for an elided body — NEVER to
           // Read. The old "Read for more" / "Read for a full body" tags invited
           // a Read of the very file just skeletonized; on a central, wanted file
           // (Session.swift, DataRequest.swift) that fired an over-investigation
           // spiral (the agent Read the skeletonized file, then kept digging).
           // CLAUDE.md: explore output must never tell the agent to Read.
           const tag = bodyIds.size > 0
-            ? 'focused (the methods you named in full, the rest as signatures — codegraph_explore a signature by name for its body; do NOT Read)'
-            : 'skeleton (signatures only — codegraph_explore a name for its full body; do NOT Read)';
+            ? 'focused (the methods you named in full, the rest as signatures — codegg_explore a signature by name for its body; do NOT Read)'
+            : 'skeleton (signatures only — codegg_explore a name for its full body; do NOT Read)';
           lines.push(`#### ${filePath} — ${names} · ${tag}`, '', '```' + lang, skel.join('\n'), '```', '');
           totalChars += skel.join('\n').length + 120;
           filesIncluded++;
@@ -2470,10 +2470,10 @@ export class ToolHandler {
     if (budget.includeCompletenessSignal) {
       lines.push('');
       lines.push('---');
-      lines.push(`> **Complete source for ${filesIncluded} files is included above — do NOT re-read them.** If your question also needs files/symbols listed under "Not shown above" (or any area this call didn't cover), make ANOTHER codegraph_explore targeting those names — it returns the same source with line numbers and is cheaper and more complete than reading. Reserve Read for a single specific line range explore can't surface.`);
+      lines.push(`> **Complete source for ${filesIncluded} files is included above — do NOT re-read them.** If your question also needs files/symbols listed under "Not shown above" (or any area this call didn't cover), make ANOTHER codegg_explore targeting those names — it returns the same source with line numbers and is cheaper and more complete than reading. Reserve Read for a single specific line range explore can't surface.`);
     } else if (anyFileTrimmed) {
       lines.push('');
-      lines.push(`> Some file sections were trimmed for size. For a specific symbol you still need, run another \`codegraph_explore\` (or \`codegraph_node\`) with its exact name — line-numbered source, cheaper and more complete than Read.`);
+      lines.push(`> Some file sections were trimmed for size. For a specific symbol you still need, run another \`codegg_explore\` (or \`codegg_node\`) with its exact name — line-numbered source, cheaper and more complete than Read.`);
     }
 
     // Add explore budget note based on project size
@@ -2508,19 +2508,19 @@ export class ToolHandler {
       const lastSection = cut.lastIndexOf('\n#### ');
       const boundary = lastSection > hardCeiling * 0.5 ? lastSection : cut.lastIndexOf('\n');
       const safe = boundary > 0 ? cut.slice(0, boundary) : cut;
-      return this.textResult(safe + '\n\n... (output truncated to budget; the source above is complete and verbatim — treat it as already Read. For any area not covered, run another codegraph_explore with the specific names — do NOT Read these files.)');
+      return this.textResult(safe + '\n\n... (output truncated to budget; the source above is complete and verbatim — treat it as already Read. For any area not covered, run another codegg_explore with the specific names — do NOT Read these files.)');
     }
     return this.textResult(output);
   }
 
   /**
-   * Handle codegraph_node
+   * Handle codegg_node
    */
   private async handleNode(args: Record<string, unknown>): Promise<ToolResult> {
     const symbol = this.validateString(args.symbol, 'symbol');
     if (typeof symbol !== 'string') return symbol;
 
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     // Default to false to minimize context usage
     const includeCode = args.includeCode === true;
     const fileHint = typeof args.file === 'string' && args.file.trim() ? args.file.trim() : undefined;
@@ -2563,7 +2563,7 @@ export class ToolHandler {
     // different types (Alamofire `didCompleteTask`/`task`/`validate`, gin
     // `reset`). Returning ONE forces the agent to guess, and when it guesses
     // wrong it READS the file to find the right overload — the dominant
-    // codegraph_node read cause on Swift/Go. So return them ALL: pack as many
+    // codegg_node read cause on Swift/Go. So return them ALL: pack as many
     // FULL bodies as fit a char budget (the agent gets the one it needs in this
     // one call, no follow-up parameter to learn), and list any remainder by
     // file:line so a large overload set can't overflow the per-tool cap.
@@ -2613,14 +2613,14 @@ export class ToolHandler {
       if (listed.length > LIST_CAP) out.push(`- … +${listed.length - LIST_CAP} more`);
       out.push(
         '',
-        `> Need one of these in full? Call codegraph_node again with \`file\` (e.g. \`"${listed[0]!.filePath.split('/').pop()}"\`) or \`line\` — do NOT Read it.`,
+        `> Need one of these in full? Call codegg_node again with \`file\` (e.g. \`"${listed[0]!.filePath.split('/').pop()}"\`) or \`line\` — do NOT Read it.`,
       );
     }
     return this.textResult(this.truncateOutput(out.join('\n')));
   }
 
   /** Render one symbol: details + (optional) body/outline + its caller/callee trail. */
-  private async renderNodeSection(cg: CodeGraph, node: Node, includeCode: boolean): Promise<string> {
+  private async renderNodeSection(cg: CodeGG, node: Node, includeCode: boolean): Promise<string> {
     let code: string | null = null;
     let outline: string | null = null;
     if (includeCode) {
@@ -2640,14 +2640,14 @@ export class ToolHandler {
 
   /**
    * Build the "trail" for a symbol: its direct callees (what it calls) and
-   * callers (what calls it), each with file:line — so codegraph_node doubles as
+   * callers (what calls it), each with file:line — so codegg_node doubles as
    * the structural Grep→Read→expand primitive: a spot PLUS where to go next.
-   * Capped to stay cheap. Walk the graph by calling codegraph_node on a trail
+   * Capped to stay cheap. Walk the graph by calling codegg_node on a trail
    * entry; no Read needed for covered hops. Empty edges on a non-leaf often mean
    * dynamic dispatch the static graph couldn't resolve — that absence is itself
    * a signal (read that one hop) rather than a dead end.
    */
-  private formatTrail(cg: CodeGraph, node: Node): string {
+  private formatTrail(cg: CodeGG, node: Node): string {
     const TRAIL_CAP = 12;
     const fmt = (e: { node: Node; edge: Edge }) => {
       const base = `${e.node.name} (${e.node.filePath}:${e.node.startLine})`;
@@ -2667,7 +2667,7 @@ export class ToolHandler {
     const callees = collect(cg.getCallees(node.id));
     const callers = collect(cg.getCallers(node.id));
     if (callees.length === 0 && callers.length === 0) return '';
-    const lines: string[] = ['', '### Trail — codegraph_node any of these to follow it (no Read needed)'];
+    const lines: string[] = ['', '### Trail — codegg_node any of these to follow it (no Read needed)'];
     if (callees.length > 0) {
       lines.push(`**Calls →** ${callees.slice(0, TRAIL_CAP).map(fmt).join(', ')}${callees.length > TRAIL_CAP ? `, +${callees.length - TRAIL_CAP} more` : ''}`);
     }
@@ -2678,10 +2678,10 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_status
+   * Handle codegg_status
    */
   private async handleStatus(args: Record<string, unknown>): Promise<ToolResult> {
-    let cg = this.getCodeGraph(args.projectPath as string | undefined);
+    let cg = this.getCodeGG(args.projectPath as string | undefined);
     // Same trick as withStalenessNotice — when an explicit projectPath
     // resolves to the same project as the default session cg, prefer the
     // default so getPendingFiles() (only populated by the default's watcher)
@@ -2703,7 +2703,7 @@ export class ToolHandler {
     const mismatch = this.worktreeMismatchFor(args.projectPath as string | undefined);
 
     const lines: string[] = [
-      '## CodeGraph Status',
+      '## CodeGG Status',
       '',
     ];
     if (mismatch) {
@@ -2768,10 +2768,10 @@ export class ToolHandler {
   }
 
   /**
-   * Handle codegraph_files - get project file structure from the index
+   * Handle codegg_files - get project file structure from the index
    */
   private async handleFiles(args: Record<string, unknown>): Promise<ToolResult> {
-    const cg = this.getCodeGraph(args.projectPath as string | undefined);
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
     const pathFilter = args.path as string | undefined;
     const pattern = args.pattern as string | undefined;
     const format = (args.format as 'tree' | 'flat' | 'grouped') || 'tree';
@@ -2782,7 +2782,7 @@ export class ToolHandler {
     const allFiles = cg.getFiles();
 
     if (allFiles.length === 0) {
-      return this.textResult('No files indexed. Run `codegraph index` first.');
+      return this.textResult('No files indexed. Run `codegg index` first.');
     }
 
     // Filter by path prefix. Stored paths are project-relative POSIX (e.g.
@@ -3030,14 +3030,14 @@ export class ToolHandler {
   }
 
   /**
-   * Find ALL definitions matching a name, ranked, so codegraph_node can return
+   * Find ALL definitions matching a name, ranked, so codegg_node can return
    * every overload instead of guessing one (the wrong guess → a Read). Keepers
    * rank before generated stubs (.pb.go etc.); stable within a group preserves
    * FTS order. Returns [] when nothing matches; a qualified lookup that finds no
    * exact match returns [] rather than a misleading fuzzy file hit (#173); a
    * bare name with no exact match falls back to the single top fuzzy result.
    */
-  private findSymbolMatches(cg: CodeGraph, symbol: string): Node[] {
+  private findSymbolMatches(cg: CodeGG, symbol: string): Node[] {
     const isQualified = /[.\/]|::/.test(symbol);
 
     // For a bare name, enumerate EVERY exact-name definition via the direct index
@@ -3088,7 +3088,7 @@ export class ToolHandler {
    * Find ALL symbols matching a name. Used by callers/callees/impact to aggregate
    * results across all matching symbols (e.g., multiple classes with an `execute` method).
    */
-  private findAllSymbols(cg: CodeGraph, symbol: string): { nodes: Node[]; note: string } {
+  private findAllSymbols(cg: CodeGG, symbol: string): { nodes: Node[]; note: string } {
     let results = cg.searchNodes(symbol, { limit: 50 });
 
     // Mirror the fallback in `findSymbol` for qualified queries — FTS
@@ -3204,7 +3204,7 @@ export class ToolHandler {
    * without the full source of every method. Returns '' when the container
    * has no indexed children, so the caller can fall back to full source.
    */
-  private buildContainerOutline(cg: CodeGraph, node: Node): string {
+  private buildContainerOutline(cg: CodeGG, node: Node): string {
     const children = cg.getChildren(node.id)
       .filter(c => c.kind !== 'import' && c.kind !== 'export')
       .sort((a, b) => (a.startLine ?? 0) - (b.startLine ?? 0));
@@ -3238,9 +3238,9 @@ export class ToolHandler {
 
     if (outline) {
       lines.push('', outline, '',
-        `> Structural outline only. Read \`${node.filePath}\` or call codegraph_node on a specific member for its body.`);
+        `> Structural outline only. Read \`${node.filePath}\` or call codegg_node on a specific member for its body.`);
     } else if (code) {
-      // Line-numbered (cat -n style, like codegraph_explore and Read) so the
+      // Line-numbered (cat -n style, like codegg_explore and Read) so the
       // agent can cite/edit exact lines without re-Reading the file for them.
       const numbered = node.startLine ? numberSourceLines(code, node.startLine) : code;
       lines.push('', '```' + node.language, numbered, '```');

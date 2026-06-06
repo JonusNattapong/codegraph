@@ -3,7 +3,7 @@
  * tools/list, tools/call) over a single {@link JsonRpcTransport}. It owns
  * per-client state only (which protocol version the client asked for, whether
  * it advertised `roots`, the one-shot roots/list latch); the heavyweight
- * resources (CodeGraph, watcher, ToolHandler) live in the shared
+ * resources (CodeGG, watcher, ToolHandler) live in the shared
  * {@link MCPEngine} so daemon mode can collapse N inotify sets / DB handles
  * to one.
  *
@@ -17,7 +17,7 @@ import { JsonRpcRequest, JsonRpcNotification, JsonRpcTransport, ErrorCodes } fro
 import { MCPEngine } from './engine';
 import { tools } from './tools';
 import { SERVER_INSTRUCTIONS } from './server-instructions';
-import { CodeGraphPackageVersion } from './version';
+import { CodeGGPackageVersion } from './version';
 
 /**
  * MCP Server Info — kept on the session because some clients log it. The
@@ -26,8 +26,8 @@ import { CodeGraphPackageVersion } from './version';
 // Exported so the proxy can answer `initialize` locally with the IDENTICAL
 // payload the daemon would send — no drift between the two handshake paths.
 export const SERVER_INFO = {
-  name: 'codegraph',
-  version: CodeGraphPackageVersion,
+  name: 'codegg',
+  version: CodeGGPackageVersion,
 };
 
 /** MCP Protocol Version (latest the server claims). */
@@ -237,7 +237,7 @@ export class MCPSession {
    *   2. if still uninitialized and we never asked the client for its roots,
    *      do so now (one-shot); fall back to cwd if the client lacks roots;
    *   3. last-resort: re-walk from the best candidate — picks up projects
-   *      that were `codegraph init`'d *after* the server started.
+   *      that were `codegg init`'d *after* the server started.
    */
   private async retryInitIfNeeded(): Promise<void> {
     if (this.resolvePromise) {
@@ -245,7 +245,7 @@ export class MCPSession {
       this.resolvePromise = null;
     }
 
-    if (this.engine.hasDefaultCodeGraph()) return;
+    if (this.engine.hasDefaultCodeGG()) return;
 
     const hint = this.explicitProjectPath ?? this.engine.getProjectPath();
     if (!hint && !this.rootsAttempted) {
@@ -255,7 +255,7 @@ export class MCPSession {
         : this.engine.ensureInitialized(process.cwd());
       try { await this.resolvePromise; } catch { /* fall through */ }
       this.resolvePromise = null;
-      if (this.engine.hasDefaultCodeGraph()) return;
+      if (this.engine.hasDefaultCodeGG()) return;
     }
 
     // Last resort: walk from the best candidate (sync open). Picks up
@@ -276,11 +276,11 @@ export class MCPSession {
       if (rootPath) {
         target = rootPath;
       } else {
-        process.stderr.write('[CodeGraph MCP] Client returned no workspace roots; falling back to process cwd.\n');
+        process.stderr.write('[CodeGG MCP] Client returned no workspace roots; falling back to process cwd.\n');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[CodeGraph MCP] roots/list request failed (${msg}); falling back to process cwd.\n`);
+      process.stderr.write(`[CodeGG MCP] roots/list request failed (${msg}); falling back to process cwd.\n`);
     }
     await this.engine.ensureInitialized(target);
   }

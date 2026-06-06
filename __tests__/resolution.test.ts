@@ -8,7 +8,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import { CodeGraph } from '../src';
+import { CodeGG } from '../src';
 import { Node, UnresolvedReference } from '../src/types';
 import { ReferenceResolver, createResolver, ResolutionContext } from '../src/resolution';
 import { matchReference } from '../src/resolution/name-matcher';
@@ -20,11 +20,11 @@ import { DatabaseConnection } from '../src/db';
 
 describe('Resolution Module', () => {
   let tempDir: string;
-  let cg: CodeGraph;
+  let cg: CodeGG;
 
   beforeEach(() => {
     // Create temp directory
-    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-resolution-test-'));
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-resolution-test-'));
   });
 
   afterEach(() => {
@@ -642,7 +642,7 @@ from ..services import auth_service
   });
 
   describe('Integration Tests', () => {
-    it('should create resolver from CodeGraph instance', async () => {
+    it('should create resolver from CodeGG instance', async () => {
       // Create a simple TypeScript project
       fs.writeFileSync(
         path.join(tempDir, 'package.json'),
@@ -676,7 +676,7 @@ function processDate(input: string): string {
       );
 
       // Initialize and index
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       // Check that resolver detected React framework
       const frameworks = cg.getDetectedFrameworks();
@@ -709,7 +709,7 @@ function main(): void {
 }`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       // Run reference resolution
       const result = cg.resolveReferences();
@@ -738,7 +738,7 @@ def bootstrap():
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const bootstrap = cg
@@ -796,7 +796,7 @@ func UsePkga() {
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       const usePkga = cg.getNodesByKind('function').filter((n) => n.name ==='UsePkga')[0];
       expect(usePkga).toBeDefined();
@@ -841,7 +841,7 @@ func UseAliased() {
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       const useAliased = cg.getNodesByKind('function').filter((n) => n.name ==='UseAliased')[0];
       expect(useAliased).toBeDefined();
@@ -861,7 +861,7 @@ func UseAliased() {
       // so the camelCase receiver↔type word overlap pulls the call to
       // `RecorderHandle::stop` instead of the look-alike class.
       fs.mkdirSync(path.join(tempDir, 'voice'));
-      fs.mkdirSync(path.join(tempDir, 'codegraph'));
+      fs.mkdirSync(path.join(tempDir, 'codegg'));
 
       fs.writeFileSync(
         path.join(tempDir, 'voice', 'recorder.ts'),
@@ -880,7 +880,7 @@ export async function finaliseRecording(recorder: RecorderHandle) {
 `
       );
       fs.writeFileSync(
-        path.join(tempDir, 'codegraph', 'stdio-client.ts'),
+        path.join(tempDir, 'codegg', 'stdio-client.ts'),
         `export class StdioMcpClient {
   private stopped = false;
   async stop(): Promise<void> { this.stopped = true; }
@@ -888,7 +888,7 @@ export async function finaliseRecording(recorder: RecorderHandle) {
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       const handleStop = cg
         .getNodesByKind('method')
@@ -955,7 +955,7 @@ public class Handler {
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       const use = cg
         .getNodesByKind('method')
@@ -1000,7 +1000,7 @@ public class DataExporter
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       const sessionDto = cg
         .getNodesByKind('class')
@@ -1041,7 +1041,7 @@ func main() {
 `
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
 
       const mainFn = cg.getNodesByKind('function').filter((n) => n.name ==='main')[0];
       const calls = cg.getOutgoingEdges(mainFn!.id).filter((e) => e.kind === 'calls');
@@ -1144,7 +1144,7 @@ func main() {
         })
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       // The two pickMe nodes live in different files. The aliased
@@ -1176,7 +1176,7 @@ func main() {
         `import { aFn } from './a';\nexport function bFn(): void { aFn(); }\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       // No tsconfig present — index should still complete and the
       // relative-import-based call edge should be created.
       const aFn = cg.getNodesByKind('function').find((n) => n.name === 'aFn');
@@ -1209,7 +1209,7 @@ func main() {
         `import { signIn } from './all';\nexport function go(): void { signIn(); }\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const signInNode = cg
@@ -1238,7 +1238,7 @@ func main() {
         `import { login } from './index';\nexport function go(): void { login(); }\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const signInNode = cg
@@ -1273,7 +1273,7 @@ func main() {
         `<script lang="ts">\n  import { Foo } from './lib';\n</script>\n\n<Foo />\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const fooNode = cg
@@ -1308,7 +1308,7 @@ func main() {
         `import { helper } from './';\nexport function go2(): void { helper(); }\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const helperNode = cg
@@ -1348,7 +1348,7 @@ func main() {
         `<script lang="ts">\n  import { Thing } from '@scope/ui/widgets';\n</script>\n\n<Thing />\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const buttonNode = cg
@@ -1379,7 +1379,7 @@ func main() {
         `<script lang="ts">\nimport { run } from './';\nexport default { mounted() { run(); } };\n</script>\n<template><div/></template>\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const runNode = cg
@@ -1410,7 +1410,7 @@ func main() {
         `<script setup lang="ts">\nimport { Thing } from './lib';\n</script>\n<template>\n  <Thing />\n</template>\n`
       );
 
-      cg = await CodeGraph.init(tempDir, { index: true });
+      cg = await CodeGG.init(tempDir, { index: true });
       cg.resolveReferences();
 
       const widgetNode = cg
@@ -1641,7 +1641,7 @@ func main() {
 
     it('should discover include directories from compile_commands.json', () => {
       // Create a temp project with compile_commands.json
-      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-cpp-test-'));
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-cpp-test-'));
       try {
         const compileDb = [
           {
@@ -1672,7 +1672,7 @@ func main() {
     });
 
     it('should fall back to heuristic include dirs when no compile_commands.json', () => {
-      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-cpp-test-'));
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-cpp-test-'));
       try {
         // Create include/ and src/ directories with headers
         fs.mkdirSync(path.join(tempProject, 'include'), { recursive: true });
@@ -1702,7 +1702,7 @@ func main() {
     // "exclude objc dirs" refactor breaks loudly and reviewers see the
     // trade-off explicitly.
     it('heuristic claims any top-level dir containing .h files, including Obj-C', () => {
-      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-cpp-test-'));
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-cpp-test-'));
       try {
         // C++ side: an `cppmod` dir with a .hpp (C++-only extension)
         fs.mkdirSync(path.join(tempProject, 'cppmod'), { recursive: true });
@@ -1728,7 +1728,7 @@ func main() {
     // edge). This pins the include-dir resolution path so the headline PR
     // feature can't silently regress to a no-op in the indexing flow.
     it('connects #include to the real header file via include-dir scan (end-to-end)', async () => {
-      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-cpp-e2e-'));
+      const tempProject = fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-cpp-e2e-'));
       try {
         fs.mkdirSync(path.join(tempProject, 'include'), { recursive: true });
         fs.mkdirSync(path.join(tempProject, 'src'), { recursive: true });
@@ -1742,7 +1742,7 @@ func main() {
         );
 
         clearCppIncludeDirCache();
-        cg = await CodeGraph.init(tempProject, { index: true });
+        cg = await CodeGG.init(tempProject, { index: true });
 
         // Sanity: file nodes exist for the header and the cpp.
         const allFiles = cg.getStats();
@@ -1751,7 +1751,7 @@ func main() {
         // The `#include "utils.h"` edge should target the real
         // `include/utils.h` file node — not a floating `import` node
         // living inside main.cpp.
-        const db = DatabaseConnection.open(path.join(tempProject, '.codegraph', 'codegraph.db'));
+        const db = DatabaseConnection.open(path.join(tempProject, '.codegg', 'codegg.db'));
         const rows = db.getDb().prepare(`
           select dst.kind as dstKind, dst.file_path as dstPath
           from edges e

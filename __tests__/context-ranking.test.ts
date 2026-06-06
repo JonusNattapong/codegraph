@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
-import CodeGraph from '../src/index';
+import CodeGG from '../src/index';
 import { LOW_CONFIDENCE_MARKER } from '../src/context';
 import { isDistinctiveIdentifier } from '../src/search/query-utils';
 
@@ -41,10 +41,10 @@ describe('isDistinctiveIdentifier', () => {
 
 describe('Context ranking — common-word precision & confidence', () => {
   let testDir: string;
-  let cg: CodeGraph;
+  let cg: CodeGG;
 
   beforeEach(async () => {
-    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-ctxrank-'));
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-ctxrank-'));
 
     // The corroborated target: a capture-flow screen whose NAME alone matches
     // three query terms (capture + intro + screen), and which lives under a
@@ -71,7 +71,7 @@ export function downloadDataset(name: string): string { return name; }
 `
     );
 
-    cg = CodeGraph.initSync(testDir, {
+    cg = CodeGG.initSync(testDir, {
       config: { include: ['**/*.ts', '**/*.tsx'], exclude: [] },
     });
     await cg.indexAll();
@@ -110,7 +110,7 @@ export function downloadDataset(name: string): string { return name; }
     expect(typeof md).toBe('string');
     expect(md as string).toContain(LOW_CONFIDENCE_MARKER);
     // The handoff routes to the precise tools rather than claiming completeness.
-    expect(md as string).toMatch(/codegraph_explore/);
+    expect(md as string).toMatch(/codegg_explore/);
   });
 
   it('does not emit the handoff for a precise, distinctive-symbol query', async () => {

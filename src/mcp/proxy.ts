@@ -22,7 +22,7 @@ import * as fs from 'fs';
 import * as net from 'net';
 import { HOST_PPID_ENV } from '../extraction/wasm-runtime-flags';
 import { DaemonHello, MAX_HELLO_LINE_BYTES } from './daemon';
-import { CodeGraphPackageVersion } from './version';
+import { CodeGGPackageVersion } from './version';
 import { SERVER_INFO, PROTOCOL_VERSION } from './session';
 import { SERVER_INSTRUCTIONS } from './server-instructions';
 import { getStaticTools } from './tools';
@@ -59,7 +59,7 @@ export interface ProxyResult {
  */
 export async function runProxy(
   socketPath: string,
-  expectedVersion: string = CodeGraphPackageVersion,
+  expectedVersion: string = CodeGGPackageVersion,
 ): Promise<ProxyResult> {
   // POSIX: refuse to connect to a stale socket file that points at no
   // listening process. `fs.existsSync` is a cheap pre-check; a real
@@ -79,9 +79,9 @@ export async function runProxy(
     return { outcome: 'fallback-needed', reason: hello.message };
   }
 
-  if (hello.codegraph !== expectedVersion) {
+  if (hello.codegg !== expectedVersion) {
     process.stderr.write(
-      `[CodeGraph MCP] Found a daemon on ${socketPath} but version (${hello.codegraph}) ` +
+      `[CodeGG MCP] Found a daemon on ${socketPath} but version (${hello.codegg}) ` +
       `differs from ours (${expectedVersion}); falling back to direct mode.\n`
     );
     socket.destroy();
@@ -89,7 +89,7 @@ export async function runProxy(
   }
 
   process.stderr.write(
-    `[CodeGraph MCP] Attached to shared daemon on ${socketPath} (pid ${hello.pid}, v${hello.codegraph}).\n`
+    `[CodeGG MCP] Attached to shared daemon on ${socketPath} (pid ${hello.pid}, v${hello.codegg}).\n`
   );
 
   startPpidWatchdog(socket);
@@ -108,7 +108,7 @@ export async function runProxy(
  */
 export async function connectWithHello(
   socketPath: string,
-  expectedVersion: string = CodeGraphPackageVersion,
+  expectedVersion: string = CodeGGPackageVersion,
 ): Promise<net.Socket | 'version-mismatch' | null> {
   if (process.platform !== 'win32' && !fs.existsSync(socketPath)) return null;
   const socket = net.createConnection(socketPath);
@@ -118,18 +118,18 @@ export async function connectWithHello(
     socket.destroy();
     return null; // no daemon yet — caller should keep polling
   }
-  if (hello.codegraph !== expectedVersion) {
+  if (hello.codegg !== expectedVersion) {
     // A daemon IS up but it's the wrong version — definitive, not a "not yet".
     // Don't poll; the caller serves in-process so we never run stale-vs-new.
     process.stderr.write(
-      `[CodeGraph MCP] Found a daemon on ${socketPath} but version (${hello.codegraph}) ` +
+      `[CodeGG MCP] Found a daemon on ${socketPath} but version (${hello.codegg}) ` +
       `differs from ours (${expectedVersion}); serving this session in-process.\n`
     );
     socket.destroy();
     return 'version-mismatch';
   }
   process.stderr.write(
-    `[CodeGraph MCP] Attached to shared daemon on ${socketPath} (pid ${hello.pid}, v${hello.codegraph}).\n`
+    `[CodeGG MCP] Attached to shared daemon on ${socketPath} (pid ${hello.pid}, v${hello.codegg}).\n`
   );
   return socket;
 }
@@ -275,7 +275,7 @@ export async function runLocalHandshakeProxy(deps: LocalHandshakeDeps): Promise<
     pending.length = 0;
   } else if (!shuttingDown) {
     daemonStatus = 'failed';
-    process.stderr.write('[CodeGraph MCP] Shared daemon unavailable; serving this session in-process (degraded).\n');
+    process.stderr.write('[CodeGG MCP] Shared daemon unavailable; serving this session in-process (degraded).\n');
     const buffered = pending.splice(0);
     for (const line of buffered) await handleLocally(line);
   }
@@ -287,13 +287,13 @@ export async function runLocalHandshakeProxy(deps: LocalHandshakeDeps): Promise<
  *  {@link startPpidWatchdog} but with no socket to close (the caller's shutdown
  *  handles teardown). */
 function startPpidWatchdogNoSocket(onDeath: () => void): void {
-  const pollMs = parsePollMs(process.env.CODEGRAPH_PPID_POLL_MS);
+  const pollMs = parsePollMs(process.env.CODEGG_PPID_POLL_MS);
   if (pollMs <= 0) return;
   const originalPpid = process.ppid;
   const hostPpid = parseHostPpid(process.env[HOST_PPID_ENV]);
   const timer = setInterval(() => {
     if (process.ppid !== originalPpid || (hostPpid !== null && !isProcessAliveLocal(hostPpid))) {
-      process.stderr.write('[CodeGraph MCP] Parent process exited; shutting down.\n');
+      process.stderr.write('[CodeGG MCP] Parent process exited; shutting down.\n');
       onDeath();
     }
   }, pollMs);
@@ -335,7 +335,7 @@ function readHelloLine(socket: net.Socket): Promise<DaemonHello> {
       }
       try {
         const parsed = JSON.parse(line) as DaemonHello;
-        if (typeof parsed.codegraph !== 'string' || typeof parsed.pid !== 'number') {
+        if (typeof parsed.codegg !== 'string' || typeof parsed.pid !== 'number') {
           reject(new Error('daemon hello missing required fields'));
           return;
         }
@@ -387,7 +387,7 @@ function pipeUntilClose(socket: net.Socket): Promise<void> {
     socket.on('end', () => done());
     socket.on('close', () => done());
     socket.on('error', (err) => {
-      process.stderr.write(`[CodeGraph MCP] daemon socket error: ${err.message}\n`);
+      process.stderr.write(`[CodeGG MCP] daemon socket error: ${err.message}\n`);
       done();
     });
   });
@@ -403,7 +403,7 @@ function pipeUntilClose(socket: net.Socket): Promise<void> {
  * watchers to clean up, so this is cheap.
  */
 function startPpidWatchdog(socket: net.Socket): void {
-  const pollMs = parsePollMs(process.env.CODEGRAPH_PPID_POLL_MS);
+  const pollMs = parsePollMs(process.env.CODEGG_PPID_POLL_MS);
   if (pollMs <= 0) return;
   const originalPpid = process.ppid;
   const hostPpid = parseHostPpid(process.env[HOST_PPID_ENV]);
@@ -415,7 +415,7 @@ function startPpidWatchdog(socket: net.Socket): void {
       const reason = ppidChanged
         ? `ppid ${originalPpid} -> ${current}`
         : `host pid ${hostPpid} exited`;
-      process.stderr.write(`[CodeGraph MCP] Parent process exited (${reason}); shutting down.\n`);
+      process.stderr.write(`[CodeGG MCP] Parent process exited (${reason}); shutting down.\n`);
       try { socket.destroy(); } catch { /* ignore */ }
       process.exit(0);
     }

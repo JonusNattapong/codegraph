@@ -14,7 +14,7 @@
  * Config shape uses opencode's wrapper:
  *   {
  *     "$schema": "https://opencode.ai/config.json",
- *     "mcp": { "codegraph": { "type": "local", "command": [...], "enabled": true } }
+ *     "mcp": { "codegg": { "type": "local", "command": [...], "enabled": true } }
  *   }
  *
  * The shape differs from Claude/Cursor — opencode uses `mcp.<name>`
@@ -43,8 +43,8 @@ import {
   removeMarkedSection,
 } from './shared';
 import {
-  CODEGRAPH_SECTION_END,
-  CODEGRAPH_SECTION_START,
+  CODEGG_SECTION_END,
+  CODEGG_SECTION_START,
 } from '../instructions-template';
 
 function globalConfigDir(): string {
@@ -97,7 +97,7 @@ function parseConfig(text: string): Record<string, any> {
 function getOpencodeServerEntry(): { type: string; command: string[]; enabled: boolean } {
   return {
     type: 'local',
-    command: ['codegraph', 'serve', '--mcp'],
+    command: ['codegg', 'serve', '--mcp'],
     enabled: true,
   };
 }
@@ -116,7 +116,7 @@ class OpencodeTarget implements AgentTarget {
   detect(loc: Location): DetectionResult {
     const file = configPath(loc);
     const config = parseConfig(readConfigText(file));
-    const alreadyConfigured = !!config.mcp?.codegraph;
+    const alreadyConfigured = !!config.mcp?.codegg;
     const installed = loc === 'global'
       ? fs.existsSync(globalConfigDir())
       : fs.existsSync(file);
@@ -127,7 +127,7 @@ class OpencodeTarget implements AgentTarget {
     const files: WriteResult['files'] = [];
     files.push(writeMcpEntry(loc));
 
-    // AGENTS.md is no longer written — the codegraph usage guidance
+    // AGENTS.md is no longer written — the codegg usage guidance
     // ships in the MCP server's `initialize` response (issue #529).
     // Strip a block a previous install left so an upgrade self-heals.
     const instrCleanup = removeInstructionsEntry(loc);
@@ -145,11 +145,11 @@ class OpencodeTarget implements AgentTarget {
     } else {
       const text = readConfigText(file);
       const config = parseConfig(text);
-      if (!config.mcp?.codegraph) {
+      if (!config.mcp?.codegg) {
         files.push({ path: file, action: 'not-found' });
       } else {
         // Drop our key surgically. Leaves siblings + comments untouched.
-        let edits = modify(text, ['mcp', 'codegraph'], undefined, {
+        let edits = modify(text, ['mcp', 'codegg'], undefined, {
           formattingOptions: FORMATTING,
         });
         let updated = applyEdits(text, edits);
@@ -176,7 +176,7 @@ class OpencodeTarget implements AgentTarget {
     const target = configPath(loc);
     const snippet = JSON.stringify({
       $schema: 'https://opencode.ai/config.json',
-      mcp: { codegraph: getOpencodeServerEntry() },
+      mcp: { codegg: getOpencodeServerEntry() },
     }, null, 2);
     return `# Add to ${target}\n\n${snippet}\n`;
   }
@@ -199,7 +199,7 @@ function writeMcpEntry(loc: Location): WriteResult['files'][number] {
   }
 
   const config = parseConfig(text);
-  const before = config.mcp?.codegraph;
+  const before = config.mcp?.codegg;
   const after = getOpencodeServerEntry();
 
   if (jsonDeepEqual(before, after)) {
@@ -216,7 +216,7 @@ function writeMcpEntry(loc: Location): WriteResult['files'][number] {
 
   // Surgical edit — preserves comments, formatting, and order of
   // every key we don't touch.
-  const edits = modify(text, ['mcp', 'codegraph'], after, {
+  const edits = modify(text, ['mcp', 'codegg'], after, {
     formattingOptions: FORMATTING,
   });
   const updated = applyEdits(text, edits);
@@ -226,13 +226,13 @@ function writeMcpEntry(loc: Location): WriteResult['files'][number] {
 }
 
 /**
- * Strip the marker-delimited CodeGraph block from AGENTS.md if a prior
+ * Strip the marker-delimited CodeGG block from AGENTS.md if a prior
  * install wrote one. Used by both install (self-heal on upgrade) and
  * uninstall — see issue #529.
  */
 function removeInstructionsEntry(loc: Location): WriteResult['files'][number] {
   const file = instructionsPath(loc);
-  const action = removeMarkedSection(file, CODEGRAPH_SECTION_START, CODEGRAPH_SECTION_END);
+  const action = removeMarkedSection(file, CODEGG_SECTION_START, CODEGG_SECTION_END);
   return { path: file, action };
 }
 

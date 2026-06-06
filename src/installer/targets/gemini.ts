@@ -6,7 +6,7 @@
  *
  *   - MCP server entry to `~/.gemini/settings.json` (global) or
  *     `./.gemini/settings.json` (local) under the standard
- *     `mcpServers.codegraph` key. Same shape as Claude / Cursor.
+ *     `mcpServers.codegg` key. Same shape as Claude / Cursor.
  *   - Instructions to `~/.gemini/GEMINI.md` (global) or `./GEMINI.md`
  *     (local — Gemini reads the project root file directly, not
  *     under `.gemini/`).
@@ -40,8 +40,8 @@ import {
   writeJsonFile,
 } from './shared';
 import {
-  CODEGRAPH_SECTION_END,
-  CODEGRAPH_SECTION_START,
+  CODEGG_SECTION_END,
+  CODEGG_SECTION_START,
 } from '../instructions-template';
 
 function configDir(loc: Location): string {
@@ -73,7 +73,7 @@ class GeminiTarget implements AgentTarget {
   detect(loc: Location): DetectionResult {
     const file = settingsJsonPath(loc);
     const config = readJsonFile(file);
-    const alreadyConfigured = !!config.mcpServers?.codegraph;
+    const alreadyConfigured = !!config.mcpServers?.codegg;
     const installed = loc === 'global'
       ? fs.existsSync(configDir('global')) || fs.existsSync(file)
       : fs.existsSync(file) || fs.existsSync(configDir('local'));
@@ -84,7 +84,7 @@ class GeminiTarget implements AgentTarget {
     const files: WriteResult['files'] = [];
     files.push(writeMcpEntry(loc));
 
-    // GEMINI.md is no longer written — the codegraph usage guidance
+    // GEMINI.md is no longer written — the codegg usage guidance
     // ships in the MCP server's `initialize` response (issue #529).
     // Strip a block a previous install left so an upgrade self-heals.
     const instrCleanup = removeInstructionsEntry(loc);
@@ -98,8 +98,8 @@ class GeminiTarget implements AgentTarget {
 
     const file = settingsJsonPath(loc);
     const config = readJsonFile(file);
-    if (config.mcpServers?.codegraph) {
-      delete config.mcpServers.codegraph;
+    if (config.mcpServers?.codegg) {
+      delete config.mcpServers.codegg;
       if (Object.keys(config.mcpServers).length === 0) {
         delete config.mcpServers;
       }
@@ -119,7 +119,7 @@ class GeminiTarget implements AgentTarget {
 
   printConfig(loc: Location): string {
     const target = settingsJsonPath(loc);
-    const snippet = JSON.stringify({ mcpServers: { codegraph: getMcpServerConfig() } }, null, 2);
+    const snippet = JSON.stringify({ mcpServers: { codegg: getMcpServerConfig() } }, null, 2);
     return `# Add to ${target}\n\n${snippet}\n`;
   }
 
@@ -134,7 +134,7 @@ function writeMcpEntry(loc: Location): WriteResult['files'][number] {
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 
   const existing = readJsonFile(file);
-  const before = existing.mcpServers?.codegraph;
+  const before = existing.mcpServers?.codegg;
   const after = getMcpServerConfig();
 
   if (jsonDeepEqual(before, after)) {
@@ -143,19 +143,19 @@ function writeMcpEntry(loc: Location): WriteResult['files'][number] {
   const action: 'created' | 'updated' =
     before ? 'updated' : (fs.existsSync(file) ? 'updated' : 'created');
   if (!existing.mcpServers) existing.mcpServers = {};
-  existing.mcpServers.codegraph = after;
+  existing.mcpServers.codegg = after;
   writeJsonFile(file, existing);
   return { path: file, action };
 }
 
 /**
- * Strip the marker-delimited CodeGraph block from GEMINI.md if a prior
+ * Strip the marker-delimited CodeGG block from GEMINI.md if a prior
  * install wrote one. Used by both install (self-heal on upgrade) and
  * uninstall — see issue #529.
  */
 function removeInstructionsEntry(loc: Location): WriteResult['files'][number] {
   const file = instructionsPath(loc);
-  const action = removeMarkedSection(file, CODEGRAPH_SECTION_START, CODEGRAPH_SECTION_END);
+  const action = removeMarkedSection(file, CODEGG_SECTION_START, CODEGG_SECTION_END);
   return { path: file, action };
 }
 

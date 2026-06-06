@@ -13,14 +13,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { FileLock, validateProjectPath } from '../src/utils';
-import CodeGraph from '../src/index';
+import CodeGG from '../src/index';
 import { ToolHandler, tools } from '../src/mcp/tools';
 import { scanDirectory, isSourceFile } from '../src/extraction';
 import { DatabaseConnection, getDatabasePath } from '../src/db';
 import { QueryBuilder } from '../src/db/queries';
 
 function createTempDir(): string {
-  return fs.mkdtempSync(path.join(os.tmpdir(), 'codegraph-security-test-'));
+  return fs.mkdtempSync(path.join(os.tmpdir(), 'codegg-security-test-'));
 }
 
 function cleanupTempDir(dir: string): void {
@@ -137,7 +137,7 @@ describe('FileLock', () => {
 
 describe('Path Traversal Prevention', () => {
   let testDir: string;
-  let cg: CodeGraph;
+  let cg: CodeGG;
 
   beforeEach(async () => {
     testDir = createTempDir();
@@ -150,7 +150,7 @@ describe('Path Traversal Prevention', () => {
       `export function hello(): string { return "hi"; }\n`
     );
 
-    cg = CodeGraph.initSync(testDir, {
+    cg = CodeGG.initSync(testDir, {
       config: { include: ['**/*.ts'], exclude: [] },
     });
     await cg.indexAll();
@@ -208,7 +208,7 @@ describe('validateProjectPath — sensitive directory blocking', () => {
 
 describe('MCP Input Validation', () => {
   let testDir: string;
-  let cg: CodeGraph;
+  let cg: CodeGG;
   let handler: ToolHandler;
 
   beforeEach(async () => {
@@ -222,7 +222,7 @@ describe('MCP Input Validation', () => {
       `export function exampleFunc(): void {}\nexport class ExampleClass {}\n`
     );
 
-    cg = CodeGraph.initSync(testDir, {
+    cg = CodeGG.initSync(testDir, {
       config: { include: ['**/*.ts'], exclude: [] },
     });
     await cg.indexAll();
@@ -234,43 +234,43 @@ describe('MCP Input Validation', () => {
     cleanupTempDir(testDir);
   });
 
-  it('should reject non-string query in codegraph_search', async () => {
-    const result = await handler.execute('codegraph_search', { query: null });
+  it('should reject non-string query in codegg_search', async () => {
+    const result = await handler.execute('codegg_search', { query: null });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('non-empty string');
   });
 
-  it('should reject empty string query in codegraph_search', async () => {
-    const result = await handler.execute('codegraph_search', { query: '' });
+  it('should reject empty string query in codegg_search', async () => {
+    const result = await handler.execute('codegg_search', { query: '' });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('non-empty string');
   });
 
-  it('should accept valid query in codegraph_search', async () => {
-    const result = await handler.execute('codegraph_search', { query: 'example' });
+  it('should accept valid query in codegg_search', async () => {
+    const result = await handler.execute('codegg_search', { query: 'example' });
     expect(result.isError).toBeFalsy();
   });
 
-  it('should clamp limit to valid range in codegraph_search', async () => {
+  it('should clamp limit to valid range in codegg_search', async () => {
     // Extremely large limit should still work (clamped to 100)
-    const result = await handler.execute('codegraph_search', { query: 'example', limit: 999999 });
+    const result = await handler.execute('codegg_search', { query: 'example', limit: 999999 });
     expect(result.isError).toBeFalsy();
   });
 
-  it('should reject non-string symbol in codegraph_callers', async () => {
-    const result = await handler.execute('codegraph_callers', { symbol: 123 });
+  it('should reject non-string symbol in codegg_callers', async () => {
+    const result = await handler.execute('codegg_callers', { symbol: 123 });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('non-empty string');
   });
 
-  it('should reject non-string query in codegraph_explore', async () => {
-    const result = await handler.execute('codegraph_explore', { query: undefined });
+  it('should reject non-string query in codegg_explore', async () => {
+    const result = await handler.execute('codegg_explore', { query: undefined });
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain('non-empty string');
   });
 
   it('should truncate oversized tool output', async () => {
-    // Force a huge result set through codegraph_search; the response must be
+    // Force a huge result set through codegg_search; the response must be
     // truncated with the sentinel rather than flooding the agent's context.
     const many = Array.from({ length: 3000 }, (_, i) => ({
       node: {
@@ -287,47 +287,47 @@ describe('MCP Input Validation', () => {
     const fakeCg = {
       searchNodes: () => many,
     };
-    const fakeHandler = new ToolHandler(fakeCg as unknown as CodeGraph);
+    const fakeHandler = new ToolHandler(fakeCg as unknown as CodeGG);
 
-    const result = await fakeHandler.execute('codegraph_search', { query: 'x' });
+    const result = await fakeHandler.execute('codegg_search', { query: 'x' });
 
     expect(result.isError).toBeFalsy();
     expect(result.content[0].text).toContain('... (output truncated)');
   });
 
-  it('should reject non-string symbol in codegraph_impact', async () => {
-    const result = await handler.execute('codegraph_impact', { symbol: [] });
+  it('should reject non-string symbol in codegg_impact', async () => {
+    const result = await handler.execute('codegg_impact', { symbol: [] });
     expect(result.isError).toBe(true);
   });
 
-  it('should reject non-string symbol in codegraph_node', async () => {
-    const result = await handler.execute('codegraph_node', { symbol: false });
+  it('should reject non-string symbol in codegg_node', async () => {
+    const result = await handler.execute('codegg_node', { symbol: false });
     expect(result.isError).toBe(true);
   });
 
-  it('should reject non-string symbol in codegraph_callees', async () => {
-    const result = await handler.execute('codegraph_callees', { symbol: {} });
+  it('should reject non-string symbol in codegg_callees', async () => {
+    const result = await handler.execute('codegg_callees', { symbol: {} });
     expect(result.isError).toBe(true);
   });
 
   it('should handle NaN limit gracefully', async () => {
-    const result = await handler.execute('codegraph_search', { query: 'example', limit: 'abc' });
+    const result = await handler.execute('codegg_search', { query: 'example', limit: 'abc' });
     expect(result.isError).toBeFalsy();
   });
 
   it('should handle negative limit gracefully', async () => {
-    const result = await handler.execute('codegraph_search', { query: 'example', limit: -5 });
+    const result = await handler.execute('codegg_search', { query: 'example', limit: -5 });
     expect(result.isError).toBeFalsy();
   });
 
-  // #230: getCodeGraph must reject a sensitive system directory passed as
+  // #230: getCodeGG must reject a sensitive system directory passed as
   // projectPath before opening it. The error surfaces through execute()'s
   // catch as an isError result. /etc is sensitive on POSIX; C:\Windows on
   // Windows (path.resolve is platform-specific, so each case is gated).
   it.runIf(process.platform !== 'win32')(
     'rejects a sensitive POSIX projectPath (/etc) via the MCP handler',
     async () => {
-      const result = await handler.execute('codegraph_search', {
+      const result = await handler.execute('codegg_search', {
         query: 'example',
         projectPath: '/etc',
       });
@@ -339,7 +339,7 @@ describe('MCP Input Validation', () => {
   it.runIf(process.platform === 'win32')(
     'rejects a sensitive Windows projectPath (C:\\Windows) via the MCP handler',
     async () => {
-      const result = await handler.execute('codegraph_search', {
+      const result = await handler.execute('codegg_search', {
         query: 'example',
         projectPath: 'C:\\Windows',
       });

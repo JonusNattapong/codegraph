@@ -1,31 +1,31 @@
 #!/usr/bin/env node
 /**
- * CodeGraph CLI
+ * CodeGG CLI
  *
- * Command-line interface for CodeGraph code intelligence.
+ * Command-line interface for CodeGG code intelligence.
  *
  * Usage:
- *   codegraph                    Run interactive installer (when no args)
- *   codegraph install            Run interactive installer
- *   codegraph uninstall          Remove CodeGraph from your agents
- *   codegraph init [path]        Initialize CodeGraph in a project
- *   codegraph uninit [path]      Remove CodeGraph from a project
- *   codegraph index [path]       Index all files in the project
- *   codegraph sync [path]        Sync changes since last index
- *   codegraph status [path]      Show index status
- *   codegraph query <search>     Search for symbols
- *   codegraph files [options]    Show project file structure
- *   codegraph context <task>     Build context for a task
- *   codegraph callers <symbol>   Find what calls a function/method
- *   codegraph callees <symbol>   Find what a function/method calls
- *   codegraph impact <symbol>    Analyze what code is affected by changing a symbol
- *   codegraph affected [files]   Find test files affected by changes
+ *   codegg                    Run interactive installer (when no args)
+ *   codegg install            Run interactive installer
+ *   codegg uninstall          Remove CodeGG from your agents
+ *   codegg init [path]        Initialize CodeGG in a project
+ *   codegg uninit [path]      Remove CodeGG from a project
+ *   codegg index [path]       Index all files in the project
+ *   codegg sync [path]        Sync changes since last index
+ *   codegg status [path]      Show index status
+ *   codegg query <search>     Search for symbols
+ *   codegg files [options]    Show project file structure
+ *   codegg context <task>     Build context for a task
+ *   codegg callers <symbol>   Find what calls a function/method
+ *   codegg callees <symbol>   Find what a function/method calls
+ *   codegg impact <symbol>    Analyze what code is affected by changing a symbol
+ *   codegg affected [files]   Find test files affected by changes
  */
 
 import { Command } from 'commander';
 import * as path from 'path';
 import * as fs from 'fs';
-import { getCodeGraphDir, isInitialized } from '../directory';
+import { getCodeGGDir, isInitialized } from '../directory';
 import { detectWorktreeIndexMismatch, worktreeMismatchWarning } from '../sync/worktree';
 import { createShimmerProgress } from '../ui/shimmer-progress';
 import { getGlyphs } from '../ui/glyphs';
@@ -33,16 +33,16 @@ import { getGlyphs } from '../ui/glyphs';
 import { buildNode25BlockBanner, buildNodeTooOldBanner, MIN_NODE_MAJOR } from './node-version-check';
 import { relaunchWithWasmRuntimeFlagsIfNeeded } from '../extraction/wasm-runtime-flags';
 
-// Lazy-load heavy modules (CodeGraph, runInstaller) to keep CLI startup fast.
-async function loadCodeGraph(): Promise<typeof import('../index')> {
+// Lazy-load heavy modules (CodeGG, runInstaller) to keep CLI startup fast.
+async function loadCodeGG(): Promise<typeof import('../index')> {
   try {
     return await import('../index');
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    console.error(`\x1b[31m${getGlyphs().err}\x1b[0m Failed to load CodeGraph modules.`);
+    console.error(`\x1b[31m${getGlyphs().err}\x1b[0m Failed to load CodeGG modules.`);
     console.error(`\n  Node: ${process.version}  Platform: ${process.platform} ${process.arch}`);
     console.error(`\n  Error: ${msg}`);
-    console.error('\n  Try reinstalling with: npm install -g @colbymchenry/codegraph\n');
+    console.error('\n  Try reinstalling with: npm install -g @colbymchenry/codegg\n');
     process.exit(1);
   }
 }
@@ -53,7 +53,7 @@ async function loadCodeGraph(): Promise<typeof import('../index')> {
 const importESM = new Function('specifier', 'return import(specifier)') as
   (specifier: string) => Promise<typeof import('@clack/prompts')>;
 
-// Block CodeGraph on Node.js 25.x — V8's turboshaft WASM JIT has a Zone
+// Block CodeGG on Node.js 25.x — V8's turboshaft WASM JIT has a Zone
 // allocator bug that reliably crashes when compiling tree-sitter
 // grammars (see #54, #81, #140). The previous behaviour was a soft
 // console.warn that scrolls off-screen before the OOM crash 30 seconds
@@ -64,7 +64,7 @@ const nodeVersion = process.versions.node;
 const nodeMajor = parseInt(nodeVersion.split('.')[0] ?? '0', 10);
 if (nodeMajor >= 25) {
   process.stderr.write(buildNode25BlockBanner(nodeVersion) + '\n');
-  if (!process.env.CODEGRAPH_ALLOW_UNSAFE_NODE) {
+  if (!process.env.CODEGG_ALLOW_UNSAFE_NODE) {
     process.exit(1);
   }
   // Override active — banner shown for visibility, continuing.
@@ -74,7 +74,7 @@ if (nodeMajor >= 25) {
 // unsupported versions. Mirrors the 25+ block above. See package.json `engines`.
 if (nodeMajor < MIN_NODE_MAJOR) {
   process.stderr.write(buildNodeTooOldBanner(nodeVersion) + '\n');
-  if (!process.env.CODEGRAPH_ALLOW_UNSAFE_NODE) {
+  if (!process.env.CODEGG_ALLOW_UNSAFE_NODE) {
     process.exit(1);
   }
   // Override active — banner shown for visibility, continuing.
@@ -101,11 +101,11 @@ if (process.argv.length === 2) {
 }
 
 process.on('uncaughtException', (error) => {
-  console.error('[CodeGraph] Uncaught exception:', error);
+  console.error('[CodeGG] Uncaught exception:', error);
 });
 
 process.on('unhandledRejection', (reason) => {
-  console.error('[CodeGraph] Unhandled rejection:', reason);
+  console.error('[CodeGG] Unhandled rejection:', reason);
 });
 
 function main() {
@@ -147,7 +147,7 @@ const chalk = {
 };
 
 program
-  .name('codegraph')
+  .name('codegg')
   .description('Code intelligence and knowledge graph for any codebase')
   .version(packageJson.version);
 
@@ -157,19 +157,19 @@ program
 
 /**
  * Resolve project path from argument or current directory
- * Walks up parent directories to find nearest initialized CodeGraph project
- * (must have .codegraph/codegraph.db, not just .codegraph/lessons.db)
+ * Walks up parent directories to find nearest initialized CodeGG project
+ * (must have .codegg/codegg.db, not just .codegg/lessons.db)
  */
 function resolveProjectPath(pathArg?: string): string {
   const absolutePath = path.resolve(pathArg || process.cwd());
 
-  // If exact path is initialized (has codegraph.db), use it
+  // If exact path is initialized (has codegg.db), use it
   if (isInitialized(absolutePath)) {
     return absolutePath;
   }
 
-  // Walk up to find nearest parent with CodeGraph initialized
-  // Note: findNearestCodeGraphRoot finds any .codegraph folder, but we need one with codegraph.db
+  // Walk up to find nearest parent with CodeGG initialized
+  // Note: findNearestCodeGGRoot finds any .codegg folder, but we need one with codegg.db
   let current = absolutePath;
   const root = path.parse(current).root;
 
@@ -347,14 +347,14 @@ function printIndexResult(clack: typeof import('@clack/prompts'), result: IndexR
 
     if (projectPath) {
       writeErrorLog(projectPath, result.errors);
-      clack.log.info('See .codegraph/errors.log for details');
+      clack.log.info('See .codegg/errors.log for details');
     }
 
     if (result.filesIndexed > 0) {
       clack.log.info(`The index is fully usable ${getGlyphs().dash} only the failed files are missing.`);
     }
   } else if (projectPath) {
-    const logPath = path.join(projectPath, '.codegraph', 'errors.log');
+    const logPath = path.join(projectPath, '.codegg', 'errors.log');
     if (fs.existsSync(logPath)) {
       fs.unlinkSync(logPath);
     }
@@ -362,10 +362,10 @@ function printIndexResult(clack: typeof import('@clack/prompts'), result: IndexR
 }
 
 /**
- * Write detailed error log to .codegraph/errors.log
+ * Write detailed error log to .codegg/errors.log
  */
 function writeErrorLog(projectPath: string, errors: Array<{ message: string; filePath?: string; severity: string; code?: string }>): void {
-  const cgDir = path.join(projectPath, '.codegraph');
+  const cgDir = path.join(projectPath, '.codegg');
   if (!fs.existsSync(cgDir)) return;
 
   const logPath = path.join(cgDir, 'errors.log');
@@ -389,7 +389,7 @@ function writeErrorLog(projectPath: string, errors: Array<{ message: string; fil
   }
 
   const lines: string[] = [
-    `CodeGraph Error Log - ${new Date().toISOString()}`,
+    `CodeGG Error Log - ${new Date().toISOString()}`,
     `${errorsByFile.size} files with errors`,
     '',
   ];
@@ -412,23 +412,23 @@ function writeErrorLog(projectPath: string, errors: Array<{ message: string; fil
 // =============================================================================
 
 /**
- * codegraph init [path]
+ * codegg init [path]
  */
 program
   .command('init [path]')
-  .description('Initialize CodeGraph in a project directory and build the initial index')
+  .description('Initialize CodeGG in a project directory and build the initial index')
   .option('-i, --index', 'Deprecated: indexing now runs by default; flag accepted for backward compatibility')
   .option('-v, --verbose', 'Show detailed worker lifecycle and memory info')
   .action(async (pathArg: string | undefined, options: { index?: boolean; verbose?: boolean }) => {
     const projectPath = path.resolve(pathArg || process.cwd());
     const clack = await importESM('@clack/prompts');
 
-    clack.intro('Initializing CodeGraph');
+    clack.intro('Initializing CodeGG');
 
     try {
       if (isInitialized(projectPath)) {
         clack.log.warn(`Already initialized in ${projectPath}`);
-        clack.log.info('Use "codegraph index" to re-index or "codegraph sync" to update');
+        clack.log.info('Use "codegg index" to re-index or "codegg sync" to update');
         try {
           const { offerWatchFallback } = await import('../installer');
           await offerWatchFallback(clack, projectPath);
@@ -437,8 +437,8 @@ program
         return;
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.init(projectPath, { index: false });
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.init(projectPath, { index: false });
       clack.log.success(`Initialized in ${projectPath}`);
 
       // Indexing runs by default now. The legacy -i/--index flag is still
@@ -474,18 +474,18 @@ program
   });
 
 /**
- * codegraph uninit [path]
+ * codegg uninit [path]
  */
 program
   .command('uninit [path]')
-  .description('Remove CodeGraph from a project (deletes .codegraph/ directory)')
+  .description('Remove CodeGG from a project (deletes .codegg/ directory)')
   .option('-f, --force', 'Skip confirmation prompt')
   .action(async (pathArg: string | undefined, options: { force?: boolean }) => {
     const projectPath = resolveProjectPath(pathArg);
 
     try {
       if (!isInitialized(projectPath)) {
-        warn(`CodeGraph is not initialized in ${projectPath}`);
+        warn(`CodeGG is not initialized in ${projectPath}`);
         return;
       }
 
@@ -495,7 +495,7 @@ program
         const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
         const answer = await new Promise<string>((resolve) => {
           rl.question(
-            chalk.yellow(`${getGlyphs().warn} This will permanently delete all CodeGraph data. Continue? (y/N) `),
+            chalk.yellow(`${getGlyphs().warn} This will permanently delete all CodeGG data. Continue? (y/N) `),
             resolve
           );
         });
@@ -507,8 +507,8 @@ program
         }
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = CodeGraph.openSync(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = CodeGG.openSync(projectPath);
       cg.uninitialize();
 
       // Clean up any git sync hooks we installed (no-op if none / not a repo).
@@ -520,7 +520,7 @@ program
         }
       } catch { /* non-fatal */ }
 
-      success(`Removed CodeGraph from ${projectPath}`);
+      success(`Removed CodeGG from ${projectPath}`);
     } catch (err) {
       error(`Failed to uninitialize: ${err instanceof Error ? err.message : String(err)}`);
       process.exit(1);
@@ -528,7 +528,7 @@ program
   });
 
 /**
- * codegraph index [path]
+ * codegg index [path]
  */
 program
   .command('index [path]')
@@ -541,13 +541,13 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
-        info('Run "codegraph init" first');
+        error(`CodeGG not initialized in ${projectPath}`);
+        info('Run "codegg init" first');
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
 
       if (options.quiet) {
         // Quiet mode: no UI, just run
@@ -597,7 +597,7 @@ program
   });
 
 /**
- * codegraph sync [path]
+ * codegg sync [path]
  */
 program
   .command('sync [path]')
@@ -609,13 +609,13 @@ program
     try {
       if (!isInitialized(projectPath)) {
         if (!options.quiet) {
-          error(`CodeGraph not initialized in ${projectPath}`);
+          error(`CodeGG not initialized in ${projectPath}`);
         }
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
 
       if (options.quiet) {
         await cg.sync();
@@ -624,7 +624,7 @@ program
       }
 
       const clack = await importESM('@clack/prompts');
-      clack.intro('Syncing CodeGraph');
+      clack.intro('Syncing CodeGG');
 
       process.stdout.write(`${colors.dim}${getGlyphs().rail}${colors.reset}\n`);
       const progress = createShimmerProgress();
@@ -659,7 +659,7 @@ program
   });
 
 /**
- * codegraph status [path]
+ * codegg status [path]
  */
 program
   .command('status [path]')
@@ -680,20 +680,20 @@ program
             initialized: false,
             version: packageJson.version,
             projectPath,
-            indexPath: getCodeGraphDir(projectPath),
+            indexPath: getCodeGGDir(projectPath),
             lastIndexed: null,
           }));
           return;
         }
-        console.log(chalk.bold('\nCodeGraph Status\n'));
+        console.log(chalk.bold('\nCodeGG Status\n'));
         info(`Project: ${projectPath}`);
         warn('Not initialized');
-        info('Run "codegraph init" to initialize');
+        info('Run "codegg init" to initialize');
         return;
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
       const stats = cg.getStats();
       const changes = cg.getChangedFiles();
       const backend = cg.getBackend();
@@ -706,7 +706,7 @@ program
           initialized: true,
           version: packageJson.version,
           projectPath,
-          indexPath: getCodeGraphDir(projectPath),
+          indexPath: getCodeGGDir(projectPath),
           lastIndexed: lastIndexedMs != null ? new Date(lastIndexedMs).toISOString() : null,
           fileCount: stats.fileCount,
           nodeCount: stats.nodeCount,
@@ -729,7 +729,7 @@ program
         return;
       }
 
-      console.log(chalk.bold('\nCodeGraph Status\n'));
+      console.log(chalk.bold('\nCodeGG Status\n'));
 
       // Project info
       console.log(chalk.cyan('Project:'), projectPath);
@@ -791,7 +791,7 @@ program
         if (changes.removed.length > 0) {
           console.log(`  Removed:   ${changes.removed.length} files`);
         }
-        info('Run "codegraph sync" to update the index');
+        info('Run "codegg sync" to update the index');
       } else {
         success('Index is up to date');
       }
@@ -805,7 +805,7 @@ program
   });
 
 /**
- * codegraph query <search>
+ * codegg query <search>
  */
 program
   .command('query <search>')
@@ -819,12 +819,12 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
 
       const limit = parseInt(options.limit || '10', 10);
       const rawResults = cg.searchNodes(search, {
@@ -877,7 +877,7 @@ program
   });
 
 /**
- * codegraph files [path]
+ * codegg files [path]
  */
 program
   .command('files')
@@ -902,16 +902,16 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
       let files = cg.getFiles();
 
       if (files.length === 0) {
-        info('No files indexed. Run "codegraph index" first.');
+        info('No files indexed. Run "codegg index" first.');
         cg.destroy();
         return;
       }
@@ -1084,11 +1084,11 @@ function printFileTree(
 }
 
 /**
- * codegraph serve
+ * codegg serve
  */
 program
   .command('serve')
-  .description('Start CodeGraph as an MCP server for AI assistants')
+  .description('Start CodeGG as an MCP server for AI assistants')
   .option('-p, --path <path>', 'Project path (optional for MCP mode, uses rootUri from client)')
   .option('--mcp', 'Run as MCP server (stdio transport)')
   .option('--no-watch', 'Disable the file watcher (no auto-sync; useful on slow filesystems like WSL2 /mnt drives)')
@@ -1098,7 +1098,7 @@ program
     // Commander sets watch=false when --no-watch is passed. Route it through
     // the same env-var chokepoint the watcher and MCP server already honor.
     if (options.watch === false) {
-      process.env.CODEGRAPH_NO_WATCH = '1';
+      process.env.CODEGG_NO_WATCH = '1';
     }
 
     try {
@@ -1111,28 +1111,28 @@ program
       } else {
         // Default: show info about MCP mode.
         // Use stderr so stdout stays clean for any piped/stdio usage.
-        console.error(chalk.bold('\nCodeGraph MCP Server\n'));
+        console.error(chalk.bold('\nCodeGG MCP Server\n'));
         console.error(chalk.blue(getGlyphs().info) + ' Use --mcp flag to start the MCP server');
         console.error('\nTo use with Claude Code, add to your MCP configuration:');
         console.error(chalk.dim(`
 {
   "mcpServers": {
-    "codegraph": {
-      "command": "codegraph",
+    "codegg": {
+      "command": "codegg",
       "args": ["serve", "--mcp"]
     }
   }
 }
 `));
         console.error('Available tools:');
-        console.error(chalk.cyan('  codegraph_explore') + '   - Primary: source of the relevant symbols for any question');
-        console.error(chalk.cyan('  codegraph_search') + '    - Search for code symbols');
-        console.error(chalk.cyan('  codegraph_callers') + '   - Find callers of a symbol');
-        console.error(chalk.cyan('  codegraph_callees') + '   - Find what a symbol calls');
-        console.error(chalk.cyan('  codegraph_impact') + '    - Analyze impact of changes');
-        console.error(chalk.cyan('  codegraph_node') + '      - Get symbol details');
-        console.error(chalk.cyan('  codegraph_files') + '     - Get project file structure');
-        console.error(chalk.cyan('  codegraph_status') + '    - Get index status');
+        console.error(chalk.cyan('  codegg_explore') + '   - Primary: source of the relevant symbols for any question');
+        console.error(chalk.cyan('  codegg_search') + '    - Search for code symbols');
+        console.error(chalk.cyan('  codegg_callers') + '   - Find callers of a symbol');
+        console.error(chalk.cyan('  codegg_callees') + '   - Find what a symbol calls');
+        console.error(chalk.cyan('  codegg_impact') + '    - Analyze impact of changes');
+        console.error(chalk.cyan('  codegg_node') + '      - Get symbol details');
+        console.error(chalk.cyan('  codegg_files') + '     - Get project file structure');
+        console.error(chalk.cyan('  codegg_status') + '    - Get index status');
       }
     } catch (err) {
       error(`Failed to start server: ${err instanceof Error ? err.message : String(err)}`);
@@ -1141,7 +1141,7 @@ program
   });
 
 /**
- * codegraph unlock [path]
+ * codegg unlock [path]
  */
 program
   .command('unlock [path]')
@@ -1151,11 +1151,11 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         return;
       }
 
-      const lockPath = path.join(getCodeGraphDir(projectPath), 'codegraph.lock');
+      const lockPath = path.join(getCodeGGDir(projectPath), 'codegg.lock');
 
       if (!fs.existsSync(lockPath)) {
         info(`No lock file found ${getGlyphs().dash} nothing to do`);
@@ -1171,9 +1171,9 @@ program
   });
 
 /**
- * codegraph callers <symbol>
+ * codegg callers <symbol>
  *
- * CLI parity with the MCP graph tools (codegraph_callers/callees/impact) so the
+ * CLI parity with the MCP graph tools (codegg_callers/callees/impact) so the
  * traversal queries work in scripts, CI, and git hooks without a running MCP
  * server.
  */
@@ -1188,12 +1188,12 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
       const limit = parseInt(options.limit || '20', 10);
 
       const matches = cg.searchNodes(symbol, { limit: 50 });
@@ -1254,7 +1254,7 @@ program
   });
 
 /**
- * codegraph callees <symbol>
+ * codegg callees <symbol>
  */
 program
   .command('callees <symbol>')
@@ -1267,12 +1267,12 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
       const limit = parseInt(options.limit || '20', 10);
 
       const matches = cg.searchNodes(symbol, { limit: 50 });
@@ -1332,7 +1332,7 @@ program
   });
 
 /**
- * codegraph impact <symbol>
+ * codegg impact <symbol>
  */
 program
   .command('impact <symbol>')
@@ -1345,12 +1345,12 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         process.exit(1);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
       const depth = Math.min(Math.max(parseInt(options.depth || '2', 10), 1), 10);
 
       const matches = cg.searchNodes(symbol, { limit: 50 });
@@ -1429,14 +1429,14 @@ program
   });
 
 /**
- * codegraph affected [files...]
+ * codegg affected [files...]
  *
  * Find test files affected by the given source files.
  * Traces dependency edges transitively to find test files that depend on changed code.
  *
  * Usage:
- *   git diff --name-only | codegraph affected --stdin
- *   codegraph affected src/lib/components/Editor.svelte src/routes/+page.svelte
+ *   git diff --name-only | codegg affected --stdin
+ *   codegg affected src/lib/components/Editor.svelte src/routes/+page.svelte
  */
 program
   .command('affected [files...]')
@@ -1452,7 +1452,7 @@ program
 
     try {
       if (!isInitialized(projectPath)) {
-        error(`CodeGraph not initialized in ${projectPath}`);
+        error(`CodeGG not initialized in ${projectPath}`);
         process.exit(1);
       }
 
@@ -1470,8 +1470,8 @@ program
         process.exit(0);
       }
 
-      const { default: CodeGraph } = await loadCodeGraph();
-      const cg = await CodeGraph.open(projectPath);
+      const { default: CodeGG } = await loadCodeGG();
+      const cg = await CodeGG.open(projectPath);
       const maxDepth = parseInt(options.depth || '5', 10);
 
       // Common test file patterns
@@ -1567,11 +1567,11 @@ program
   });
 
 /**
- * codegraph install
+ * codegg install
  */
 program
   .command('install')
-  .description('Install codegraph MCP server into one or more agents (Claude Code, Cursor, Codex CLI, opencode, Hermes Agent)')
+  .description('Install codegg MCP server into one or more agents (Claude Code, Cursor, Codex CLI, opencode, Hermes Agent)')
   .option('-t, --target <ids>', 'Target agent(s): comma-separated ids, or "auto"|"all"|"none". Default: prompt')
   .option('-l, --location <where>', 'Install location: "global" or "local". Default: prompt')
   .option('-y, --yes', 'Non-interactive: defaults to --location=global --target=auto, auto-allow on')
@@ -1629,16 +1629,16 @@ program
   });
 
 /**
- * codegraph uninstall
+ * codegg uninstall
  *
- * Inverse of `install`. Removes the codegraph MCP server entry,
+ * Inverse of `install`. Removes the codegg MCP server entry,
  * instructions block, and permissions from every agent (or a
  * `--target` subset). Prompts global-vs-local when not given. Does NOT
- * delete the `.codegraph/` index — that's `codegraph uninit`.
+ * delete the `.codegg/` index — that's `codegg uninit`.
  */
 program
   .command('uninstall')
-  .description('Remove codegraph from your agents (Claude Code, Cursor, Codex CLI, opencode, Hermes Agent)')
+  .description('Remove codegg from your agents (Claude Code, Cursor, Codex CLI, opencode, Hermes Agent)')
   .option('-t, --target <ids>', 'Target agent(s): comma-separated ids, or "all". Default: all')
   .option('-l, --location <where>', 'Uninstall location: "global" or "local". Default: prompt')
   .option('-y, --yes', 'Non-interactive: defaults to --location=global --target=all')

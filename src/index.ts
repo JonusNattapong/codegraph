@@ -1,5 +1,5 @@
 /**
- * CodeGraph
+ * CodeGG
  *
  * A local-first code intelligence system that builds a semantic
  * knowledge graph from any codebase.
@@ -51,22 +51,22 @@ import { FileWatcher, WatchOptions, PendingFile, LockUnavailableError } from './
 // Re-export types for consumers
 export * from './types';
 // Storage building blocks for embedded/SDK consumers that drive the graph
-// directly (open a DB, run prepared queries) rather than through the CodeGraph
+// directly (open a DB, run prepared queries) rather than through the CodeGG
 // facade. Exposed from the package entry so they no longer require deep imports
 // into dist/ (issue #354).
 export { getDatabasePath, DatabaseConnection } from './db';
 export { QueryBuilder } from './db/queries';
 export {
-  getCodeGraphDir,
+  getCodeGGDir,
   isInitialized,
-  findNearestCodeGraphRoot,
-  CODEGRAPH_DIR,
+  findNearestCodeGGRoot,
+  CODEGG_DIR,
 } from './directory';
 export { IndexProgress, IndexResult, SyncResult } from './extraction';
 export { detectLanguage, isLanguageSupported, isGrammarLoaded, getSupportedLanguages, initGrammars, loadGrammarsForLanguages, loadAllGrammars } from './extraction';
 export { ResolutionResult } from './resolution';
 export {
-  CodeGraphError,
+  CodeGGError,
   FileError,
   ParseError,
   DatabaseError,
@@ -84,7 +84,7 @@ export { FileWatcher, WatchOptions, PendingFile, LockUnavailableError } from './
 export { MCPServer } from './mcp';
 
 /**
- * Options for initializing a new CodeGraph project
+ * Options for initializing a new CodeGG project
  */
 export interface InitOptions {
   /** Whether to run initial indexing after init */
@@ -95,7 +95,7 @@ export interface InitOptions {
 }
 
 /**
- * Options for opening an existing CodeGraph project
+ * Options for opening an existing CodeGG project
  */
 export interface OpenOptions {
   /** Whether to run sync if files have changed */
@@ -120,11 +120,11 @@ export interface IndexOptions {
 }
 
 /**
- * Main CodeGraph class
+ * Main CodeGG class
  *
  * Provides the primary interface for interacting with the code knowledge graph.
  */
-export class CodeGraph {
+export class CodeGG {
   private db: DatabaseConnection;
   private queries: QueryBuilder;
   private projectRoot: string;
@@ -152,7 +152,7 @@ export class CodeGraph {
     this.queries = queries;
     this.projectRoot = projectRoot;
     this.fileLock = new FileLock(
-      path.join(projectRoot, '.codegraph', 'codegraph.lock')
+      path.join(projectRoot, '.codegg', 'codegg.lock')
     );
     this.orchestrator = new ExtractionOrchestrator(projectRoot, queries);
     this.resolver = createResolver(projectRoot, queries);
@@ -170,21 +170,21 @@ export class CodeGraph {
   // ===========================================================================
 
   /**
-   * Initialize a new CodeGraph project
+   * Initialize a new CodeGG project
    *
-   * Creates the .CodeGraph directory, database, and configuration.
+   * Creates the .CodeGG directory, database, and configuration.
    *
    * @param projectRoot - Path to the project root directory
    * @param options - Initialization options
-   * @returns A new CodeGraph instance
+   * @returns A new CodeGG instance
    */
-  static async init(projectRoot: string, options: InitOptions = {}): Promise<CodeGraph> {
+  static async init(projectRoot: string, options: InitOptions = {}): Promise<CodeGG> {
     await initGrammars();
     const resolvedRoot = path.resolve(projectRoot);
 
     // Check if already initialized
     if (isInitialized(resolvedRoot)) {
-      throw new Error(`CodeGraph already initialized in ${resolvedRoot}`);
+      throw new Error(`CodeGG already initialized in ${resolvedRoot}`);
     }
 
     // Create directory structure
@@ -195,7 +195,7 @@ export class CodeGraph {
     const db = DatabaseConnection.initialize(dbPath);
     const queries = new QueryBuilder(db.getDb());
 
-    const instance = new CodeGraph(db, queries, resolvedRoot);
+    const instance = new CodeGG(db, queries, resolvedRoot);
 
     // Run initial indexing if requested
     if (options.index) {
@@ -208,12 +208,12 @@ export class CodeGraph {
   /**
    * Initialize synchronously (without indexing)
    */
-  static initSync(projectRoot: string): CodeGraph {
+  static initSync(projectRoot: string): CodeGG {
     const resolvedRoot = path.resolve(projectRoot);
 
     // Check if already initialized
     if (isInitialized(resolvedRoot)) {
-      throw new Error(`CodeGraph already initialized in ${resolvedRoot}`);
+      throw new Error(`CodeGG already initialized in ${resolvedRoot}`);
     }
 
     // Create directory structure
@@ -224,29 +224,29 @@ export class CodeGraph {
     const db = DatabaseConnection.initialize(dbPath);
     const queries = new QueryBuilder(db.getDb());
 
-    return new CodeGraph(db, queries, resolvedRoot);
+    return new CodeGG(db, queries, resolvedRoot);
   }
 
   /**
-   * Open an existing CodeGraph project
+   * Open an existing CodeGG project
    *
    * @param projectRoot - Path to the project root directory
    * @param options - Open options
-   * @returns A CodeGraph instance
+   * @returns A CodeGG instance
    */
-  static async open(projectRoot: string, options: OpenOptions = {}): Promise<CodeGraph> {
+  static async open(projectRoot: string, options: OpenOptions = {}): Promise<CodeGG> {
     await initGrammars();
     const resolvedRoot = path.resolve(projectRoot);
 
     // Check if initialized
     if (!isInitialized(resolvedRoot)) {
-      throw new Error(`CodeGraph not initialized in ${resolvedRoot}. Run init() first.`);
+      throw new Error(`CodeGG not initialized in ${resolvedRoot}. Run init() first.`);
     }
 
     // Validate directory structure
     const validation = validateDirectory(resolvedRoot);
     if (!validation.valid) {
-      throw new Error(`Invalid CodeGraph directory: ${validation.errors.join(', ')}`);
+      throw new Error(`Invalid CodeGG directory: ${validation.errors.join(', ')}`);
     }
 
     // Open database
@@ -254,7 +254,7 @@ export class CodeGraph {
     const db = DatabaseConnection.open(dbPath);
     const queries = new QueryBuilder(db.getDb());
 
-    const instance = new CodeGraph(db, queries, resolvedRoot);
+    const instance = new CodeGG(db, queries, resolvedRoot);
 
     // Sync if requested
     if (options.sync) {
@@ -267,18 +267,18 @@ export class CodeGraph {
   /**
    * Open synchronously (without sync)
    */
-  static openSync(projectRoot: string): CodeGraph {
+  static openSync(projectRoot: string): CodeGG {
     const resolvedRoot = path.resolve(projectRoot);
 
     // Check if initialized
     if (!isInitialized(resolvedRoot)) {
-      throw new Error(`CodeGraph not initialized in ${resolvedRoot}. Run init() first.`);
+      throw new Error(`CodeGG not initialized in ${resolvedRoot}. Run init() first.`);
     }
 
     // Validate directory structure
     const validation = validateDirectory(resolvedRoot);
     if (!validation.valid) {
-      throw new Error(`Invalid CodeGraph directory: ${validation.errors.join(', ')}`);
+      throw new Error(`Invalid CodeGG directory: ${validation.errors.join(', ')}`);
     }
 
     // Open database
@@ -286,18 +286,18 @@ export class CodeGraph {
     const db = DatabaseConnection.open(dbPath);
     const queries = new QueryBuilder(db.getDb());
 
-    return new CodeGraph(db, queries, resolvedRoot);
+    return new CodeGG(db, queries, resolvedRoot);
   }
 
   /**
-   * Check if a directory has been initialized as a CodeGraph project
+   * Check if a directory has been initialized as a CodeGG project
    */
   static isInitialized(projectRoot: string): boolean {
     return isInitialized(path.resolve(projectRoot));
   }
 
   /**
-   * Close the CodeGraph instance and release resources
+   * Close the CodeGG instance and release resources
    */
   close(): void {
     this.unwatch();
@@ -579,7 +579,7 @@ export class CodeGraph {
   /**
    * Most recent index timestamp (ms since epoch) across all tracked files, or
    * null when nothing is indexed yet. Lets library consumers check index
-   * freshness without shelling out to `codegraph status --json`. (#329)
+   * freshness without shelling out to `codegg status --json`. (#329)
    */
   getLastIndexedAt(): number | null {
     return this.queries.getLastIndexedAt();
@@ -648,8 +648,8 @@ export class CodeGraph {
 
   /**
    * Active SQLite backend for this project's connection (`node-sqlite` — Node's
-   * built-in real-SQLite module). Surfaced via `codegraph status` and the
-   * `codegraph_status` MCP tool alongside the effective journal mode.
+   * built-in real-SQLite module). Surfaced via `codegg status` and the
+   * `codegg_status` MCP tool alongside the effective journal mode.
    */
   getBackend(): import('./db').SqliteBackend {
     return this.db.getBackend();
@@ -659,7 +659,7 @@ export class CodeGraph {
    * The journal mode actually in effect ('wal', 'delete', …). 'wal' means
    * readers never block on a concurrent writer; anything else means they can,
    * which is the precondition for the "database is locked" failures in issue
-   * #238. Surfaced via `codegraph status` and the `codegraph_status` MCP tool.
+   * #238. Surfaced via `codegg status` and the `codegg_status` MCP tool.
    */
   getJournalMode(): string {
     return this.db.getJournalMode();
@@ -710,9 +710,9 @@ export class CodeGraph {
    * Find the project's "primary route file" — the file with the densest
    * concentration of framework-emitted `route` nodes (≥3 routes, ≥30%
    * of all non-test routes). Used to inline the routing config in
-   * `codegraph_explore` responses on small realworld template repos
+   * `codegg_explore` responses on small realworld template repos
    * (rails-realworld, laravel-realworld, drupal-admintoolbar, …) where
-   * Glob+Read of `routes.rb`/`urls.py`/etc. otherwise beats codegraph.
+   * Glob+Read of `routes.rb`/`urls.py`/etc. otherwise beats codegg.
    */
   getTopRouteFile(): { filePath: string; routeCount: number; totalRoutes: number } | null {
     return this.queries.getTopRouteFile();
@@ -1048,10 +1048,10 @@ export class CodeGraph {
   }
 
   /**
-   * Completely remove CodeGraph from the project.
-   * This closes the database and deletes the .CodeGraph directory.
+   * Completely remove CodeGG from the project.
+   * This closes the database and deletes the .CodeGG directory.
    *
-   * WARNING: This permanently deletes all CodeGraph data for the project.
+   * WARNING: This permanently deletes all CodeGG data for the project.
    */
   uninitialize(): void {
     this.close();
@@ -1060,4 +1060,4 @@ export class CodeGraph {
 }
 
 // Default export
-export default CodeGraph;
+export default CodeGG;

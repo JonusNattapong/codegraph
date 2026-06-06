@@ -4,6 +4,7 @@
  * Handles Django, Flask, and FastAPI patterns.
  */
 
+import { generateNodeId } from '../../extraction/tree-sitter-helpers';
 import { Node } from '../../types';
 import { FrameworkResolver, UnresolvedRef, ResolutionContext, FrameworkExtractionResult } from '../types';
 import { stripCommentsForRegex } from '../strip-comments';
@@ -50,8 +51,13 @@ export const djangoResolver: FrameworkResolver = {
 
   // Let the ORM dynamic-dispatch ref reach resolve() despite no symbol being
   // named `_iterable_class` (it's a QuerySet attribute, not a declared method).
+  // Also let Django signal names pass the pre-filter — they're imported from
+  // django.db.models.signals and paired via @receiver / .connect() but are not
+  // declared symbols in the user's project.
   claimsReference(name) {
-    return name === '_iterable_class';
+    if (name === '_iterable_class') return true;
+    if (DJANGO_SIGNALS.has(name)) return true;
+    return false;
   },
 
   extract(filePath, content) {
@@ -127,6 +133,108 @@ export const djangoResolver: FrameworkResolver = {
         referenceName: viewset,
         referenceKind: 'references',
         line, column: 0, filePath, language: 'python',
+      });
+
+      // DRF ViewSet CRUD actions: each ViewSet has 6 standard actions inherited from
+      // mixins (list + create + retrieve + update + partial_update + destroy). Even
+      // when the user doesn't override them, the route nodes document the API surface;
+      // when the user DOES override (e.g. `def list(self, request)`), the reference
+      // resolves to the override via name matching. DRF's basename is the registered
+      // prefix, and action names match the Router's default mapping.
+      const CRUD_ACTIONS = [
+        { method: 'GET',    path: '',       action: 'list' },
+        { method: 'POST',   path: '',       action: 'create' },
+        { method: 'GET',    path: ':id',    action: 'retrieve' },
+        { method: 'PUT',    path: ':id',    action: 'update' },
+        { method: 'PATCH',  path: ':id',    action: 'partial_update' },
+        { method: 'DELETE', path: ':id',    action: 'destroy' },
+      ] as const;
+      for (const { method, path, action } of CRUD_ACTIONS) {
+        const fullPath = path ? `${prefix}/${path}` : prefix;
+        const actionNode: Node = {
+          id: `route:${filePath}:${line}:${method}:${fullPath}:${action}`,
+          kind: 'route',
+          name: `${method} /${fullPath}`,
+          qualifiedName: `${filePath}::${method}:${fullPath}`,
+          filePath, startLine: line, endLine: line, startColumn: 0, endColumn: match[0].length,
+          language: 'python', updatedAt: now,
+        };
+        nodes.push(actionNode);
+        references.push({
+          fromNodeId: actionNode.id,
+          referenceName: action,
+          referenceKind: 'references',
+          line, column: 0, filePath, language: 'python',
+        });
+      }
+    }
+
+    // Django signal connections: @receiver(signal_name, ...) and signal_name.connect(handler)
+    // Create a route-like node per signal connection + a reference to the handler function.
+    // The signal name passes the pre-filter via claimsReference above.
+    const signalReceiverRe = /@receiver\s*\(\s*([^)]+)\s*\)/g;
+    while ((match = signalReceiverRe.exec(safe)) !== null) {
+      const args = match[1]!;
+      const firstArg = args.split(',').map((a) => a.trim())[0]!;
+      if (!firstArg || firstArg.startsWith('sender=')) continue;
+      const tail = safe.slice(match.index + match[0].length);
+      const defMatch = tail.match(/\n\s*(?:async\s+)?def\s+(\w+)/);
+      if (!defMatch) continue;
+      const handlerName = defMatch[1]!;
+      const line = safe.slice(0, match.index).split('\n').length;
+      const signalNode: Node = {
+        id: `signal:${filePath}:${line}:${firstArg}`,
+        kind: 'route',
+        name: `SIGNAL ${firstArg}`,
+        qualifiedName: `${filePath}::signal:${firstArg}`,
+        filePath,
+        startLine: line,
+        endLine: line,
+        startColumn: 0,
+        endColumn: match[0].length,
+        language: 'python',
+        updatedAt: now,
+      };
+      nodes.push(signalNode);
+      references.push({
+        fromNodeId: signalNode.id,
+        referenceName: handlerName,
+        referenceKind: 'references',
+        line,
+        column: 0,
+        filePath,
+        language: 'python',
+      });
+    }
+
+    const signalConnectRe = /(\w+)\.connect\s*\(\s*(\w+)/g;
+    while ((match = signalConnectRe.exec(safe)) !== null) {
+      const receiverName = match[1]!;
+      const handlerName = match[2]!;
+      if (!DJANGO_SIGNALS.has(receiverName)) continue;
+      const line = safe.slice(0, match.index).split('\n').length;
+      const signalNode: Node = {
+        id: `signal:${filePath}:${line}:${receiverName}`,
+        kind: 'route',
+        name: `SIGNAL ${receiverName}`,
+        qualifiedName: `${filePath}::signal:${receiverName}`,
+        filePath,
+        startLine: line,
+        endLine: line,
+        startColumn: 0,
+        endColumn: match[0].length,
+        language: 'python',
+        updatedAt: now,
+      };
+      nodes.push(signalNode);
+      references.push({
+        fromNodeId: signalNode.id,
+        referenceName: handlerName,
+        referenceKind: 'references',
+        line,
+        column: 0,
+        filePath,
+        language: 'python',
       });
     }
 
@@ -255,7 +363,8 @@ export const fastapiResolver: FrameworkResolver = {
 
   extract(filePath, content) {
     if (!filePath.endsWith('.py')) return { nodes: [], references: [] };
-    return extractDecoratorRoutes(filePath, stripCommentsForRegex(content, 'python'), {
+    const safe = stripCommentsForRegex(content, 'python');
+    const { nodes, references } = extractDecoratorRoutes(filePath, safe, {
       // FastAPI: @x.METHOD('/path') -> handler on the next def line. Path may be
       // empty ("") for routes mounted at the router/prefix root.
       decoratorRegex: /@(\w+)\.(get|post|put|patch|delete|options|head)\s*\(\s*['"]([^'"]*)['"]/g,
@@ -265,6 +374,37 @@ export const fastapiResolver: FrameworkResolver = {
       findHandler: true,
       language: 'python',
     });
+
+    // FastAPI dependency injection: `Depends(get_db)` in a handler function's
+    // signature means FastAPI calls get_db() before the handler — a framework-
+    // internal dispatch with no static edge. Scan each function definition for
+    // `Depends(X)` in its parameters and create a 'calls' reference from the
+    // handler function node to the dependency function X. The reference resolves
+    // via standard name matching (X is a declared function) or the existing
+    // FastAPI resolver's `get_` / `Depends` prefix handler.
+    const dependsFuncRe = /def\s+(\w+)\s*\(([^)]*)\)\s*(?:->.*)?:/g;
+    let dm: RegExpExecArray | null;
+    while ((dm = dependsFuncRe.exec(safe)) !== null) {
+      const funcName = dm[1]!;
+      const args = dm[2]!;
+      if (!args.includes('Depends(')) continue;
+      const lineNum = safe.slice(0, dm.index).split('\n').length;
+      const depArgRe = /Depends\s*\(\s*(\w+)\s*\)/g;
+      let am: RegExpExecArray | null;
+      while ((am = depArgRe.exec(args)) !== null) {
+        references.push({
+          fromNodeId: generateNodeId(filePath, 'function', funcName, lineNum),
+          referenceName: am[1]!,
+          referenceKind: 'calls',
+          line: lineNum,
+          column: 0,
+          filePath,
+          language: 'python',
+        });
+      }
+    }
+
+    return { nodes, references };
   },
 };
 
@@ -417,3 +557,16 @@ function resolveByNameAndKind(
   // Fall back to any match
   return kindFiltered[0]!.id;
 }
+
+/**
+ * Well-known Django built-in signal names. User code imports these from
+ * django.db.models.signals (or django.dispatch) and connects receivers
+ * via @receiver decorator or .connect() — they aren't declared symbols in
+ * the project, so claimsReference lets them pass the pre-filter.
+ */
+const DJANGO_SIGNALS = new Set([
+  'pre_save', 'post_save', 'pre_delete', 'post_delete',
+  'pre_init', 'post_init', 'pre_migrate', 'post_migrate',
+  'm2m_changed', 'class_prepared', 'request_started', 'request_finished',
+  'got_request_exception', 'setting_changed',
+]);

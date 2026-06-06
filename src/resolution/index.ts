@@ -724,6 +724,14 @@ export class ReferenceResolver {
       );
     }
 
+    // Dynamic-edge synthesis: same as resolveAndPersistBatched, so callback edges
+    // are synthesized during incremental sync too, not just full re-index.
+    try {
+      synthesizeCallbackEdges(this.queries, this.context);
+    } catch {
+      // synthesis is additive and optional; ignore failures
+    }
+
     return result;
   }
 

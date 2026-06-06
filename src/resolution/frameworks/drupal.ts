@@ -286,6 +286,43 @@ function extractDrupalHooks(
     }
   }
 
+  // Strategy C: Drupal 11+ PHP attributes — #[Hook('hook_name')] on a method.
+  // Modern Drupal core has moved nearly all hook implementations to attribute-
+  // decorated methods (418 files in core vs 3 procedural), so the docblock/name
+  // strategies find essentially nothing in modern projects. The #[Hook] attribute
+  // is the standard convention.
+  // After matching #[Hook('name')], scan forward skipping blank lines and other
+  // #[...] attributes to find the first function/method definition.
+  const hookAttrRe = /#\[\s*(?:\\?Drupal\\Core\\Hook\\Attribute\\)?Hook\s*\(\s*'([^']+)'[^)]*\)\s*\]/g;
+  let hm: RegExpExecArray | null;
+  while ((hm = hookAttrRe.exec(content)) !== null) {
+    const hookName = `hook_${hm[1]!}`;
+    // Walk forward from attribute end until we hit a function def or a non-attr line
+    const walkStart = hm.index + hm[0].length;
+    let pos = walkStart;
+    while (pos < content.length) {
+      const lineEnd = content.indexOf('\n', pos);
+      if (lineEnd < 0) break;
+      const line = content.slice(pos, lineEnd).trim();
+      pos = lineEnd + 1;
+      // Skip blank lines and other #[...] attributes
+      if (line === '' || line.startsWith('#[')) continue;
+      // Look for function definition: `function name(` or `public function name(` etc.
+      const funcMatch = line.match(
+        /^(?:\s*(?:public|private|protected|static)\s+)*function\s+(\w+)\s*\(/
+      );
+      if (funcMatch) {
+        const funcName = funcMatch[1]!;
+        if (!docblockMatched.has(funcName)) {
+          emitHookRef(hookName, funcName);
+        }
+        break;
+      }
+      // Non-attribute, non-function line = we've passed the method this attr decorates
+      break;
+    }
+  }
+
   return { nodes: [], references };
 }
 

@@ -342,6 +342,43 @@ export function kindBonus(kind: Node['kind']): number {
 }
 
 /**
+ * Module/package match bonus: boost a symbol when its parent module (the
+ * segment before `::` / `.` in qualifiedName, or the last path segment of
+ * its directory) matches a query term. This helps "auth" in the query rank
+ * `auth.Authenticator` higher than `http.Authenticator`.
+ *
+ * @param qualifiedName - The symbol's qualified name (e.g. `auth.route::login`)
+ * @param queryTerms - Lowercased query terms (≥3 chars)
+ * @returns Bonus score (0-15)
+ */
+export function moduleMatchBonus(qualifiedName: string, queryTerms: string[]): number {
+  if (!qualifiedName || queryTerms.length === 0) return 0;
+  const qn = qualifiedName.toLowerCase();
+
+  // Extract the parent module: the segment before ::separator or the first
+  // dot-separated part. Examples:
+  //   `auth.route::login` → parent = "auth.route" or "route"
+  //   `com.example.Foo::bar` → parent = "com.example" or "Foo"
+  const parentByColon = qn.includes('::') ? qn.split('::')[0] : '';
+  const parentByDot = qn.includes('.') ? qn.split('.')[0] : '';
+  const parentSegments: string[] = [];
+  if (parentByColon) parentSegments.push(parentByColon);
+  if (parentByDot) parentSegments.push(parentByDot);
+
+  let score = 0;
+  for (const term of queryTerms) {
+    for (const parent of parentSegments) {
+      // Exact module segment match (strongest)
+      if (parent === term) score += 15;
+      // Module starts with or contains term
+      else if (parent.startsWith(term)) score += 10;
+      else if (parent.includes(term)) score += 5;
+    }
+  }
+  return Math.min(score, 30); // cap at 30 to avoid dominating other signals
+}
+
+/**
  * Whether a query token looks like a code identifier the user deliberately typed
  * (camelCase / PascalCase-with-internal-caps / snake_case / has a digit) rather
  * than a plain dictionary word ("flat", "object", "screen").

@@ -18,7 +18,7 @@ import {
   SearchResult,
 } from '../types';
 import { safeJsonParse } from '../utils';
-import { kindBonus, nameMatchBonus, scorePathRelevance } from '../search/query-utils';
+import { kindBonus, nameMatchBonus, scorePathRelevance, moduleMatchBonus } from '../search/query-utils';
 import { parseQuery, boundedEditDistance } from '../search/query-parser';
 import { isGeneratedFile } from '../extraction/generated-detection';
 
@@ -833,12 +833,18 @@ export class QueryBuilder {
     // Apply multi-signal scoring
     if (results.length > 0 && (text || query)) {
       const scoringQuery = text || query;
+      // Extract query terms for module-match boost
+      const queryTerms = scoringQuery.toLowerCase().split(/\s+/).filter(t => t.length >= 3);
       results = results.map(r => ({
         ...r,
         score: r.score
           + kindBonus(r.node.kind)
           + scorePathRelevance(r.node.filePath, scoringQuery)
-          + nameMatchBonus(r.node.name, scoringQuery),
+          + nameMatchBonus(r.node.name, scoringQuery)
+          // Module-match bonus: boost when the symbol's parent module/package
+          // (the segment before :: or the last / in its qualifiedName) matches a
+          // query term.  "auth" in query → `auth.Authenticator` > `http.Authenticator`.
+          + moduleMatchBonus(r.node.qualifiedName || r.node.name, queryTerms),
       }));
       results.sort((a, b) => b.score - a.score);
       // Trim to requested limit after rescoring

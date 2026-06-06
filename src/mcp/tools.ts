@@ -1326,27 +1326,55 @@ export class ToolHandler {
       }
       if (named.size < 2) return EMPTY;
       const MAX_HOPS = 7;
+      /**
+       * A* heuristic: estimate distance from `node` to the nearest named target.
+       * Lower = closer to goal. Uses cheap surface-level signals:
+       *   0 = node IS a named target (goal)
+       *   1 = node shares a file with a named target (co-located)
+       *   2 = node's name contains a query token segment (semantic hint)
+       *   3 = no signal (explore later)
+       */
+      const namedFiles = new Set([...named.values()].map((n) => n.filePath));
+      const tokenSegments = new Set(tokens.flatMap((t) => t.toLowerCase().split(/::|\./)));
+      function heuristic(id: string, node: Node): number {
+        if (named.has(id)) return 0;
+        if (namedFiles.has(node.filePath)) return 1;
+        const qn = (node.qualifiedName || node.name).toLowerCase();
+        for (const seg of tokenSegments) { if (qn.includes(seg)) return 2; }
+        return 3;
+      }
+
       let best: Array<{ node: Node; edge: Edge | null }> | null = null;
-      // BFS the full call graph (incl. synth edges) from each named seed, but
-      // only ACCEPT a sink that is also named — both ends anchored to symbols the
-      // agent named, so the chain stays on-topic while bridging intermediates
-      // (e.g. the exact interface overload) that the token resolution missed.
+      // A* from each named seed toward other named symbols.
+      // Priority queue ordered by f(n) = depth + heuristic(n) — lower = explored first.
       for (const seed of [...named.values()].slice(0, 8)) {
         const parent = new Map<string, { prev: string | null; edge: Edge | null; node: Node }>();
         parent.set(seed.id, { prev: null, edge: null, node: seed });
-        const q: Array<{ id: string; depth: number; streak: number }> = [{ id: seed.id, depth: 0, streak: 0 }];
+        // Priority queue entries: [id, depth, streak, priority]
+        // priority = depth + heuristic — min-heap ordered by priority.
+        const pq: Array<{ id: string; depth: number; streak: number; prio: number }> = [];
+        const pushPq = (id: string, depth: number, streak: number) => {
+          const node = parent.get(id)?.node;
+          if (!node) return;
+          const prio = depth + heuristic(id, node);
+          // Binary insertion into the priority queue (min-heap order by prio)
+          let lo = 0, hi = pq.length;
+          while (lo < hi) { const mid = (lo + hi) >>> 1; if (pq[mid]!.prio <= prio) lo = mid + 1; else hi = mid; }
+          pq.splice(lo, 0, { id, depth, streak, prio });
+        };
+        pushPq(seed.id, 0, 0);
         let deep: string | null = null, deepDepth = 0;
-        const MAX_BRIDGE = 1; // ≤1 consecutive UNNAMED hop: bridge one missing intermediate, never wander a god-function's fan-out
-        for (let h = 0; h < q.length && parent.size < 1500; h++) {
-          const { id, depth, streak } = q[h]!;
-          if (id !== seed.id && named.has(id) && depth > deepDepth) { deep = id; deepDepth = depth; }
+        const MAX_BRIDGE = 1; // ≤1 consecutive UNNAMED hop
+        while (pq.length > 0 && parent.size < 1500) {
+          const { id, depth, streak } = pq.shift()!;
+          if (parent.size > 1 && id !== seed.id && named.has(id) && depth > deepDepth) { deep = id; deepDepth = depth; }
           if (depth >= MAX_HOPS - 1) continue;
           for (const c of cg.getCallees(id)) {
             if (c.edge.kind !== 'calls' || parent.has(c.node.id)) continue;
             const newStreak = named.has(c.node.id) ? 0 : streak + 1;
             if (newStreak > MAX_BRIDGE) continue;
             parent.set(c.node.id, { prev: id, edge: c.edge, node: c.node });
-            q.push({ id: c.node.id, depth: depth + 1, streak: newStreak });
+            pushPq(c.node.id, depth + 1, newStreak);
           }
         }
         if (!deep) continue;

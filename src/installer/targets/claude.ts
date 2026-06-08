@@ -265,7 +265,7 @@ function cleanupLegacyLocalMcp(): WriteResult['files'][number] | null {
  * a pre-0.8 install wrote. Those installers added
  * `PostToolUse(Edit|Write) → codegg mark-dirty` and
  * `Stop → codegg sync-if-dirty` (local builds used the
- * `npx @colbymchenry/codegg …` form, which still contains the
+ * `npx @jonusnattapong/codegg …` form, which still contains the
  * `codegg <subcommand>` substring). Both subcommands were later
  * removed from the CLI, so the Stop hook fails every turn with
  * "unknown command 'sync-if-dirty'". Matching on the codegg-scoped

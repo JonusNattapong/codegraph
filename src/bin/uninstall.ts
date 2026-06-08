@@ -2,7 +2,7 @@
 /**
  * CodeGG preuninstall cleanup script
  *
- * Runs automatically when `npm uninstall -g @colbymchenry/codegg`
+ * Runs automatically when `npm uninstall -g @jonusnattapong/codegg`
  * is called. Loops over every known agent target's `uninstall(loc)`
  * for the global location only — local-location entries live inside
  * project working trees and aren't ours to nuke at npm-uninstall

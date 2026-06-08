@@ -3,9 +3,9 @@
  *
  * The published main package is a thin shim: the CLI `bin` (npm-shim.js) execs
  * the bundled Node, while `main` (npm-sdk.js) lets embedded consumers
- * `require("@colbymchenry/codegg")` on their OWN Node by re-exporting the
+ * `require("@jonusnattapong/codegg")` on their OWN Node by re-exporting the
  * compiled library that ships inside the per-platform optionalDependency
- * (@colbymchenry/codegg-<target>/lib/dist/index.js).
+ * (@jonusnattapong/codegg-<target>/lib/dist/index.js).
  *
  * These tests stand up a temp main-package dir with a fake platform package as a
  * resolvable sibling, then require the SDK in a child process — so resolution,
@@ -29,7 +29,7 @@ function mkTmp(label: string): string {
 
 // A temp node_modules with the main package (npm-sdk.js + package.json). The
 // fake platform package, when present, is written as a resolvable sibling so the
-// SDK's `require.resolve('@colbymchenry/codegg-<target>/...')` walks to it.
+// SDK's `require.resolve('@jonusnattapong/codegg-<target>/...')` walks to it.
 function makeConsumer(): { root: string; mainPkg: string } {
   const root = mkTmp('consumer');
   const mainPkg = path.join(root, 'node_modules', '@colbymchenry', 'codegg');
@@ -37,7 +37,7 @@ function makeConsumer(): { root: string; mainPkg: string } {
   fs.copyFileSync(SDK_SRC, path.join(mainPkg, 'npm-sdk.js'));
   fs.writeFileSync(
     path.join(mainPkg, 'package.json'),
-    JSON.stringify({ name: '@colbymchenry/codegg', version: VERSION, main: 'npm-sdk.js' }) + '\n'
+    JSON.stringify({ name: '@jonusnattapong/codegg', version: VERSION, main: 'npm-sdk.js' }) + '\n'
   );
   return { root, mainPkg };
 }
@@ -57,7 +57,7 @@ function installPlatformPackage(root: string, sentinel: string): void {
   writeFakeLib(path.join(pkgRoot, 'lib', 'dist'), sentinel);
   fs.writeFileSync(
     path.join(pkgRoot, 'package.json'),
-    JSON.stringify({ name: `@colbymchenry/codegg-${target}`, version: VERSION }) + '\n'
+    JSON.stringify({ name: `@jonusnattapong/codegg-${target}`, version: VERSION }) + '\n'
   );
 }
 
@@ -100,7 +100,7 @@ describe('npm-sdk programmatic entry', () => {
     const { root, mainPkg } = makeConsumer(); // no platform package, empty cache
     const r = requireSdk(mainPkg, { CODEGG_INSTALL_DIR: path.join(root, '.empty-cache') });
     expect(r.status).toBe(7);
-    expect(r.stderr).toContain(`@colbymchenry/codegg-${target}`);
+    expect(r.stderr).toContain(`@jonusnattapong/codegg-${target}`);
     expect(r.stderr).toContain('not installed');
     expect(r.stderr).toContain('registry.npmjs.org');
   });

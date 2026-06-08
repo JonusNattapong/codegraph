@@ -117,11 +117,11 @@ export async function runInstallerWithOptions(opts: RunInstallerOptions): Promis
       const s = clack.spinner();
       s.start('Installing codegg CLI...');
       try {
-        execSync('npm install -g @colbymchenry/codegg', { stdio: 'pipe', windowsHide: true });
+        execSync('npm install -g @jonusnattapong/codegg', { stdio: 'pipe', windowsHide: true });
         s.stop('Installed codegg CLI on PATH');
       } catch {
         s.stop('Could not install (permission denied)');
-        clack.log.warn('Try: sudo npm install -g @colbymchenry/codegg');
+        clack.log.warn('Try: sudo npm install -g @jonusnattapong/codegg');
       }
     } else {
       clack.log.info('Skipped CLI install — agents will not be able to launch the MCP server without it');

@@ -39,12 +39,12 @@ function mkTmp(label: string): string {
   return fs.mkdtempSync(path.join(os.tmpdir(), `cg-shim-${label}-`));
 }
 
-// A temp dir standing in for the installed @colbymchenry/codegg main package.
+// A temp dir standing in for the installed @jonusnattapong/codegg main package.
 function makePkg(version = '9.9.9-test'): string {
   const dir = mkTmp('pkg');
   fs.copyFileSync(SHIM_SRC, path.join(dir, 'npm-shim.js'));
   fs.writeFileSync(path.join(dir, 'package.json'),
-    JSON.stringify({ name: '@colbymchenry/codegg', version }) + '\n');
+    JSON.stringify({ name: '@jonusnattapong/codegg', version }) + '\n');
   return dir;
 }
 
@@ -77,7 +77,7 @@ describe.skipIf(isWindows)('npm-shim launcher', () => {
     const platformPkg = path.join(pkg, 'node_modules', '@colbymchenry', `codegg-${target}`);
     writeLauncher(path.join(platformPkg, 'bin'));
     fs.writeFileSync(path.join(platformPkg, 'package.json'),
-      JSON.stringify({ name: `@colbymchenry/codegg-${target}`, version: '9.9.9-test' }) + '\n');
+      JSON.stringify({ name: `@jonusnattapong/codegg-${target}`, version: '9.9.9-test' }) + '\n');
     const cache = mkTmp('cache');
     const r = await runShim(pkg, ['--probe-abc'], { CODEGG_INSTALL_DIR: cache });
 
@@ -112,7 +112,7 @@ describe.skipIf(isWindows)('npm-shim launcher', () => {
 
     expect(r.status).toBe(1);
     expect(r.stderr).toContain(`no prebuilt bundle for ${target}`);
-    expect(r.stderr).toContain(`@colbymchenry/codegg-${target}`);
+    expect(r.stderr).toContain(`@jonusnattapong/codegg-${target}`);
     expect(r.stderr).toContain('--registry=https://registry.npmjs.org');
     expect(r.stderr).toContain('install.sh');
   });

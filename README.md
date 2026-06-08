@@ -63,7 +63,7 @@ SQLite knowledge graph (100% local)
 ### 1. Install
 
 ```bash
-npm i -g @colbymchenry/codegg
+npm i -g @jonusnattapong/codegg
 ```
 
 ### 2. Wire up your agents

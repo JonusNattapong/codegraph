@@ -7,29 +7,25 @@ a [GitHub Release](https://github.com/colbymchenry/codegraph/releases) tagged
 This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/)
 and adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.9.11] - 2026-06-08
 
 ### New Features
 
-- `codegg status --json` now also reports the running CLI `version`, the index directory (`indexPath`), and a `lastIndexed` timestamp (ISO-8601, or null when nothing's indexed yet), so CI and scripts can pin the CLI version and check index freshness from a single command. A matching `CodeGG.getLastIndexedAt()` library method exposes the same freshness check without shelling out. Thanks @12122J and @eddieran. (#329)
+- `codegg_file_symbols` — new MCP tool that lists every symbol in a single file, grouped by kind, without reading the file. Makes "what's in this file?" a single tool call instead of Glob + Read. (#728)
+- `codegg_explore` search ranking now prefers structurally important symbols: when two symbols match a query token equally well by name, the one with more graph connections (callers, callees, references) ranks higher, so a project-name token no longer hijacks the results with an isolated frontend class. (#720)
+- Vue 3 Composition API reactivity flows now connect end-to-end: `reactive()` stores are linked to `watchEffect()` / `computed()` / `watch()` callbacks that read from them, so following a reactive data-flow no longer dead-ends where static extraction can't see the subscription.
 
-### Fixes
+### Performance
 
-- The background file watcher no longer exhausts your machine's file-descriptor budget. On macOS it previously kept **one open file handle per watched file**, so on a large project the running MCP server could pile up tens of thousands of handles and blow past the system-wide limit — at which point *unrelated* apps (your shell, editor, Docker, browser) started failing with "too many open files" until the codegg process was killed. The watcher now uses a single recursive watch on macOS and Windows, and bounded per-directory watches on Linux, so its cost stays flat no matter how large the project is. (#644, #496, #555, #628, #579)
-- Indexing a project with very symbol-dense files (tens of thousands of functions or methods in a single file) no longer runs out of memory. The step that links dynamic call relationships used to load every function and method into memory at once, which could exhaust the heap and abort indexing with "JavaScript heap out of memory" on large or generated codebases; it now streams them, so memory stays flat no matter how many symbols the project has. (#610)
-- Indexing a very large repository no longer aborts during its first sync with a "too many SQL variables" error. (#540)
-- Files under directories with non-ASCII names (for example CJK characters) are no longer silently skipped during indexing. (#541)
-- The `.codegg/` index folder no longer clutters `git status`: its generated ignore file now excludes everything in the folder except itself, so the database, `daemon.pid`, sockets, and logs stop showing up as untracked changes. (#492, #484)
-- SAP HANA `.xsjs` / `.xsjslib` files are now indexed as JavaScript. (#556)
-- TypeScript `.mts` and `.cts` module files are now indexed instead of being skipped. (#366)
-- JavaScript modules that wrap their code in an anonymous function — AMD/RequireJS, NetSuite SuiteScript, IIFE bundles — now have their inner functions and calls indexed, instead of the file coming up nearly empty. (#528)
-- Go methods declared on generic types (e.g. `func (s *Stack[T]) Push(...)`) are now correctly attached to their type, so callers, callees, and impact include them. (#583)
-- Asking what a symbol impacts no longer drags in every unrelated sibling method of its class — impact now follows real dependencies instead of the structural "contains" relationship, keeping the result focused on what actually depends on the symbol. (#536)
-- CodeGG's MCP server now answers an agent's `resources/list` and `prompts/list` probes with an empty list instead of an error, clearing the `-32601` messages some clients (opencode, Codex) logged on connect. (#621)
-- Svelte and Vue components used through a barrel file — `export { default as Button } from './Button.svelte'` re-exported from an `index.ts` and imported elsewhere — are no longer falsely reported as having **0 callers**. CodeGG now follows the default re-export all the way to the component and resolves the imports that `.svelte` / `.vue` files themselves use, so `codegraph_callers` and `codegraph_impact` see every place a component is used. This also covers components imported from another package in a workspace/monorepo (`@scope/ui/widgets`) and bare directory imports (`import { x } from './'`). Previously a live component consumed only through a barrel looked like dead code. Thanks @nakisen. (#629)
-- Components used in a Vue Single-File Component's `<template>` — `<MyButton />`, or the kebab-case `<my-button />` — are now indexed as usages, so `codegraph_callers` and `codegraph_impact` include components that appear only in another component's markup (including through a barrel re-export). Previously only a Vue component's `<script>` block was analyzed, so template-only usages were invisible. (#629)
+- Rust `impl` block extraction is now O(1) per block instead of O(n) — the struct/enum/class name lookup uses a Map index instead of scanning every extracted node, making large Rust repos index measurably faster.
 
-## [0.9.9] - 2026-06-02
+### Internal
+
+- `buildFlowFromNamedSymbols` (the flow-synthesis engine inside `codegg_explore`) now has regression test coverage for static call chains, overloaded method disambiguation, and empty-query handling.
+
+## [Unreleased]
+
+## [0.9.10] - 2026-06-08
 
 ### New Features
 

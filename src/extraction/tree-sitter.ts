@@ -141,6 +141,7 @@ export class TreeSitterExtractor {
   private extractor: LanguageExtractor | null = null;
   private nodeStack: string[] = []; // Stack of parent node IDs
   private methodIndex: Map<string, string> | null = null; // lookup key → node ID for Pascal defProc lookup
+  private nameIndex: Map<string, string> = new Map(); // name → node ID for struct/enum/class back-refs (Rust impl, etc.)
 
   constructor(filePath: string, source: string, language?: Language) {
     this.filePath = filePath;
@@ -483,6 +484,13 @@ export class TreeSitterExtractor {
     };
 
     this.nodes.push(newNode);
+
+    // Index struct/enum/class by name for O(1) back-reference lookup
+    // (Rust `impl Trait for Type`, etc.). Overwrite semantics: last wins;
+    // matches the former linear-scan behavior of findNodeByName.
+    if (newNode.kind === 'struct' || newNode.kind === 'enum' || newNode.kind === 'class') {
+      this.nameIndex.set(newNode.name, newNode.id);
+    }
 
     // Add containment edge from parent
     if (this.nodeStack.length > 0) {
@@ -2532,12 +2540,7 @@ export class TreeSitterExtractor {
    * Find a previously-extracted node by name (used for back-references like impl blocks)
    */
   private findNodeByName(name: string): string | undefined {
-    for (const node of this.nodes) {
-      if (node.name === name && (node.kind === 'struct' || node.kind === 'enum' || node.kind === 'class')) {
-        return node.id;
-      }
-    }
-    return undefined;
+    return this.nameIndex.get(name);
   }
 
   /**

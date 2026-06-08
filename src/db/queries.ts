@@ -999,10 +999,20 @@ export class QueryBuilder {
     // mentions in long docstrings or qualified names of nested symbols.
     // Fetch 5x requested limit so post-hoc rescoring (kindBonus, pathRelevance,
     // nameMatchBonus) can promote results that BM25 alone undervalues.
+    //
+    // Structural tiebreaker: when two symbols match a query token equally well
+    // by name (e.g. a project-name token "codegraph" matching both a UI class
+    // and the actual CodeGG engine), prefer the symbol with more graph
+    // connections — it's structurally load-bearing, not an incidental match.
+    // The edge-count subquery is a cheap index scan (edges_idx_source +
+    // edges_idx_target); the ORDER BY first sorts by BM25 score, so the
+    // subquery cost only matters when scores are close.
     const ftsLimit = Math.max(limit * 5, 100);
 
     let sql = `
-      SELECT nodes.*, bm25(nodes_fts, 0, 20, 5, 1, 2) as score
+      SELECT nodes.*, bm25(nodes_fts, 0, 20, 5, 1, 2) as score,
+        (SELECT COUNT(*) FROM edges WHERE edges.source = nodes.id)
+        + (SELECT COUNT(*) FROM edges WHERE edges.target = nodes.id) as edge_count
       FROM nodes_fts
       JOIN nodes ON nodes_fts.id = nodes.id
       WHERE nodes_fts MATCH ?
@@ -1020,11 +1030,11 @@ export class QueryBuilder {
       params.push(...languages);
     }
 
-    sql += ' ORDER BY score LIMIT ? OFFSET ?';
+    sql += ' ORDER BY score, edge_count DESC LIMIT ? OFFSET ?';
     params.push(ftsLimit, offset);
 
     try {
-      const rows = this.db.prepare(sql).all(...params) as (NodeRow & { score: number })[];
+      const rows = this.db.prepare(sql).all(...params) as (NodeRow & { score: number; edge_count: number })[];
       return rows.map((row) => ({
         node: rowToNode(row),
         score: Math.abs(row.score), // bm25 returns negative scores

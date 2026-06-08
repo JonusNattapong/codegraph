@@ -510,6 +510,21 @@ export const tools: ToolDefinition[] = [
     },
   },
   {
+    name: 'codegg_file_symbols',
+    description: 'List all symbols in a single file. Quicker than Glob+Read for checking what symbols a file exports. Returns symbol kind, name, line, and optional signature.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filePath: {
+          type: 'string',
+          description: 'Project-relative file path (e.g., "src/mcp/tools.ts")',
+        },
+        projectPath: projectPathProperty,
+      },
+      required: ['filePath'],
+    },
+  },
+  {
     name: 'codegg_status',
     description: 'Index health check (files / nodes / edges). Skip unless debugging.',
     inputSchema: {
@@ -695,6 +710,7 @@ export class ToolHandler {
         'codegg_explore',
         'codegg_search',
         'codegg_node',
+        'codegg_file_symbols',
       ]);
       if (stats.fileCount < TINY_REPO_FILE_THRESHOLD) {
         visible = visible.filter(t => TINY_REPO_CORE_TOOLS.has(t.name));
@@ -1038,6 +1054,8 @@ export class ToolHandler {
           return await this.handleStatus(args);
         case 'codegg_files':
           result = await this.handleFiles(args); break;
+        case 'codegg_file_symbols':
+          result = await this.handleFileSymbols(args); break;
         default:
           return this.errorResult(`Unknown tool: ${toolName}`);
       }
@@ -1244,6 +1262,15 @@ export class ToolHandler {
       return {
         label: `Vue template handler — bound to ${ev} (dynamic dispatch)`,
         compact: `dynamic: Vue ${ev} handler`,
+        registeredAt,
+      };
+    }
+    if (m?.synthesizedBy === 'vue-reactivity') {
+      const fn = m.via ? `${String(m.via)}()` : 'a watcher';
+      const v = m.watchVar ? `.${String(m.watchVar)}` : '';
+      return {
+        label: `Vue reactivity — ${fn} reads reactive${v} (dynamic dispatch)`,
+        compact: `dynamic: Vue ${fn}${at}`,
         registeredAt,
       };
     }
@@ -2855,6 +2882,50 @@ export class ToolHandler {
     }
 
     return this.textResult(this.truncateOutput(output));
+  }
+
+  /**
+   * Handle codegg_file_symbols — list every symbol in a single file.
+   */
+  private async handleFileSymbols(args: Record<string, unknown>): Promise<ToolResult> {
+    const filePath = this.validateString(args.filePath, 'filePath');
+    if (typeof filePath !== 'string') return filePath;
+
+    const cg = this.getCodeGG(args.projectPath as string | undefined);
+    const nodes = cg.getNodesInFile(filePath);
+
+    if (nodes.length === 0) {
+      return this.textResult(`No symbols found in "${filePath}" (file may not be indexed or may have no extractable symbols)`);
+    }
+
+    // Group by kind for readability
+    const byKind = new Map<string, Node[]>();
+    for (const n of nodes) {
+      const list = byKind.get(n.kind) || [];
+      list.push(n);
+      byKind.set(n.kind, list);
+    }
+
+    const lines: string[] = [`## Symbols in \`${filePath}\` (${nodes.length} total)`];
+    const kindOrder = ['class', 'struct', 'interface', 'trait', 'function', 'method', 'variable', 'constant', 'enum', 'type_alias', 'route', 'component', 'import', 'export'];
+    for (const kind of kindOrder) {
+      const list = byKind.get(kind);
+      if (!list || list.length === 0) continue;
+      byKind.delete(kind);
+      for (const n of list) {
+        const sig = n.signature ? ` — ${n.signature}` : '';
+        lines.push(`- ${n.kind} \`${n.name}\` (line ${n.startLine}${sig})`);
+      }
+    }
+    // Remainder (any kind not in the ordered list)
+    for (const [_kind, list] of byKind) {
+      for (const n of list) {
+        const sig = n.signature ? ` — ${n.signature}` : '';
+        lines.push(`- ${n.kind} \`${n.name}\` (line ${n.startLine}${sig})`);
+      }
+    }
+
+    return this.textResult(this.truncateOutput(lines.join('\n')));
   }
 
   /**

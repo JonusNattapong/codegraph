@@ -1123,6 +1123,140 @@ function goHandlerIdent(expr: string): string | null {
   return m ? m[1]! : null;
 }
 
+/**
+ * Phase 7: Vue 3 Composition API reactivity — `reactive()` / `ref()` stores
+ * consumed inside `watchEffect()`, `computed()`, and `watch()` callbacks.
+ *
+ * Vue's reactivity system tracks property reads inside these callbacks to
+ * auto-subscribe, so a flow like `store.counter → watchEffect(…store.counter…)`
+ * is load-bearing but invisible to static extraction. This synthesizer
+ * connects each reactive variable to the callbacks that read from it.
+ *
+ * Scoped per-file (cross-file reactive imports left to the import resolver).
+ * `ref()` values are aliased as `.value` reads.
+ */
+function vueReactivityEdges(_queries: QueryBuilder, ctx: ResolutionContext): Edge[] {
+  const edges: Edge[] = [];
+  const seen = new Set<string>();
+
+  // Match: const name = reactive({...})  or  const name = ref(...)
+  const REACTIVE_DECL_RE = /(?:const|let|var)\s+(\w+)\s*=\s*(reactive|ref)\s*\(/g;
+  // Match: watchEffect(() => { ... }), computed(() => { ... }),
+  //        watch(() => { ... }, ...), watch([...], () => { ... })
+  const WATCHER_RE = /(watchEffect|computed|watch)\s*\(\s*(?:\(\)|\[[^\]]*\]\s*,\s*(?:\(\)))/g;
+
+  for (const file of ctx.getAllFiles()) {
+    const ext = file.split('.').pop() ?? '';
+    if (!['vue', 'ts', 'js', 'tsx', 'jsx', 'mjs', 'mts'].includes(ext)) continue;
+
+    const content = ctx.readFile(file);
+    if (!content) continue;
+
+    // Strip comments so we don't match commented-out reactive() calls
+    const commentLang = ext === 'vue' || ext === 'js' || ext === 'jsx' || ext === 'mjs' ? 'javascript'
+      : ext === 'ts' || ext === 'tsx' || ext === 'mts' ? 'typescript'
+      : 'javascript';
+    const safe = stripCommentsForRegex(content, commentLang);
+
+    // Find reactive/ref declarations
+    const reactives = new Map<string, { name: string; fn: string }>(); // varName → { name, fn }
+    REACTIVE_DECL_RE.lastIndex = 0;
+    let m: RegExpExecArray | null;
+    while ((m = REACTIVE_DECL_RE.exec(safe))) {
+      reactives.set(m[1]!, { name: m[1]!, fn: m[2]! });
+    }
+
+    if (reactives.size === 0) continue;
+
+    // Find watcher/computed calls
+    // For each watcher, check if its callback body references a reactive variable
+    // We approximate: scan the text between the opening =>{ and the matching }
+    // for property reads on our reactive variable names.
+    WATCHER_RE.lastIndex = 0;
+    let wm: RegExpExecArray | null;
+    while ((wm = WATCHER_RE.exec(safe))) {
+      const watcherFn = wm[1]!; // watchEffect / computed / watch
+      // Find the callback body: from the first ()=> or ()=> { to the matching }
+      const callbackStart = safe.indexOf('=>', wm.index + watcherFn.length);
+      if (callbackStart < 0) continue;
+
+      // Extract the callback body (simplified: read up to the next top-level `)` that closes the watcher call)
+      const bodyStart = safe.indexOf('{', callbackStart);
+      const bodyEnd = bodyStart >= 0 ? findMatchingBrace(safe, bodyStart) : -1;
+      const body = bodyEnd > bodyStart ? safe.slice(bodyStart, bodyEnd + 1) : '';
+
+      if (!body) continue;
+
+      // Check which reactive variables are referenced in the body
+      for (const [varName, reactive] of reactives) {
+        const refPattern = reactive.fn === 'ref' ? `${varName}\\.value` : varName;
+        if (!new RegExp(`\\b${escapeRegex(refPattern)}\\b`).test(body)) continue;
+
+        // Find the callback function node — it's typically anonymous, so
+        // we link to the enclosing function/method that contains this watcher.
+        const lineNum = safe.slice(0, wm.index).split('\n').length;
+        const nodes = ctx.getNodesInFile(file);
+        // Find the nearest enclosing function/method that contains this line
+        const enclosing = nodes
+          .filter((n) =>
+            (n.kind === 'function' || n.kind === 'method') &&
+            n.startLine <= lineNum && n.endLine >= lineNum
+          )
+          .sort((a, b) => b.startLine - a.startLine)[0]; // deepest first
+
+        if (!enclosing) continue;
+
+        // Find the reactive store's node (typically a variable or constant)
+        const reactiveNode = nodes.find(
+          (n) => n.name === varName && (n.kind === 'variable' || n.kind === 'constant')
+        );
+        if (!reactiveNode) continue;
+
+        const key = `${enclosing.id}>${reactiveNode.id}>vue-reactivity`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+
+        edges.push({
+          source: enclosing.id,
+          target: reactiveNode.id,
+          kind: 'calls',
+          line: lineNum,
+          provenance: 'heuristic',
+          metadata: {
+            synthesizedBy: 'vue-reactivity',
+            via: watcherFn,
+            watchVar: varName,
+            registeredAt: `${file}:${lineNum}`,
+          },
+        });
+      }
+    }
+  }
+  return edges;
+}
+
+/**
+ * Find the matching closing brace for an opening brace at position `open`.
+ * Returns -1 on failure.
+ */
+function findMatchingBrace(s: string, open: number): number {
+  if (s[open] !== '{') return -1;
+  let depth = 1;
+  for (let i = open + 1; i < s.length && depth > 0; i++) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}') depth--;
+    if (depth === 0) return i;
+  }
+  return -1;
+}
+
+/**
+ * Escape a string for use in a RegExp literal.
+ */
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function ginMiddlewareChainEdges(queries: QueryBuilder, ctx: ResolutionContext): Edge[] {
   // 1. Find the chain dispatcher(s): a Go method that invokes a `handlers` slice by index.
   const dispatchers: Node[] = [];
@@ -1196,6 +1330,7 @@ export function synthesizeCallbackEdges(queries: QueryBuilder, ctx: ResolutionCo
   const renderEdges = reactRenderEdges(queries, ctx);
   const jsxEdges = reactJsxChildEdges(ctx);
   const vueEdges = vueTemplateEdges(ctx);
+  const vueReactivityEdgesList = vueReactivityEdges(queries, ctx);
   const flutterEdges = flutterBuildEdges(queries, ctx);
   const cppEdges = cppOverrideEdges(queries);
   const ifaceEdges = interfaceOverrideEdges(queries);
@@ -1214,6 +1349,7 @@ export function synthesizeCallbackEdges(queries: QueryBuilder, ctx: ResolutionCo
     ...renderEdges,
     ...jsxEdges,
     ...vueEdges,
+    ...vueReactivityEdgesList,
     ...flutterEdges,
     ...cppEdges,
     ...ifaceEdges,

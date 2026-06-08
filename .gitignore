@@ -47,6 +47,9 @@ npm-debug.log*
 # CodeGraph data directories (in test projects)
 .codegraph/
 
+# CodeGG data directory (local index, not for committing)
+.codegg/
+
 test_frameworks
 
 # Test language repos for manual testing

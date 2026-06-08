@@ -1,13 +1,12 @@
 /**
  * SQLite Adapter
  *
- * Thin wrapper over Node's built-in `node:sqlite` (`DatabaseSync`), exposed
- * through a small better-sqlite3-shaped interface so the rest of the codebase
- * is storage-agnostic.
+ * Thin wrapper over Node's built-in `node:sqlite` (`DatabaseSync`) or the
+ * `better-sqlite3` npm package, exposed through a uniform `SqliteDatabase`
+ * interface so the rest of the codebase is storage-agnostic.
  *
- * CodeGG ships with a bundled Node runtime, so `node:sqlite` (real SQLite,
- * with WAL + FTS5) is always available — there is no native build step and no
- * wasm fallback. When run from source instead, it requires Node >= 22.5.
+ * Primary backend: `node:sqlite` (shipped with Node 22.5+).
+ * Fallback:       `better-sqlite3` (npm package, used when node:sqlite lacks FTS5).
  */
 
 export interface SqliteStatement {
@@ -33,10 +32,10 @@ export interface SqliteDatabase {
 }
 
 /**
- * The active SQLite backend. Only one now (`node:sqlite`); kept as a named type
- * so `codegg status` and the per-instance reporting have a stable shape.
+ * The active SQLite backend. Extended when better-sqlite3 is used as a fallback
+ * on platforms where node:sqlite's FTS5 support is unavailable.
  */
-export type SqliteBackend = 'node-sqlite';
+export type SqliteBackend = 'node-sqlite' | 'better-sqlite3';
 
 /**
  * Wraps Node's built-in `node:sqlite` (`DatabaseSync`) to match the
@@ -128,22 +127,95 @@ class NodeSqliteAdapter implements SqliteDatabase {
 }
 
 /**
- * Create a database connection backed by `node:sqlite`.
+ * Wraps the `better-sqlite3` npm package to match the `SqliteDatabase` interface.
+ * Used as a fallback on platforms where node:sqlite's FTS5 support is unavailable
+ * but better-sqlite3 is installed.
+ */
+class BetterSqlite3Adapter implements SqliteDatabase {
+  private _db: any;
+
+  constructor(dbPath: string) {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const Database = require('better-sqlite3');
+    this._db = new Database(dbPath);
+    this._db.pragma('journal_mode = WAL');
+  }
+
+  get open(): boolean {
+    return this._db.open;
+  }
+
+  prepare(sql: string): SqliteStatement {
+    const stmt = this._db.prepare(sql);
+    return {
+      run(...params: any[]) {
+        const r = stmt.run(...params);
+        return { changes: r.changes, lastInsertRowid: r.lastInsertRowid };
+      },
+      get(...params: any[]) { return stmt.get(...params); },
+      all(...params: any[]) { return stmt.all(...params); },
+      iterate(...params: any[]) { return stmt.iterate(...params); },
+    };
+  }
+
+  exec(sql: string): void { this._db.exec(sql); }
+
+  pragma(str: string, options?: { simple?: boolean }): any {
+    const trimmed = str.trim();
+    if (trimmed.includes('=')) {
+      this._db.pragma(trimmed);
+      return;
+    }
+    const row = this._db.pragma(trimmed, { simple: true });
+    if (options?.simple) return row;
+    return row;
+  }
+
+  transaction<T>(fn: (...args: any[]) => T): (...args: any[]) => T {
+    return this._db.transaction(fn);
+  }
+
+  close(): void { this._db.close(); }
+}
+
+/**
+ * Create a database connection backed by `node:sqlite` with a fallback to
+ * `better-sqlite3` when FTS5 is not available in the built-in module.
  *
  * Returns the active backend alongside the db so each `DatabaseConnection` can
  * report it per-instance — MCP can open multiple project DBs in one process, so
  * a process-global would race.
  */
 export function createDatabase(dbPath: string): { db: SqliteDatabase; backend: SqliteBackend } {
+  // 1. Try node:sqlite first (the primary backend on Node 22.5+)
+  let nodeErr: string | null = null;
   try {
-    return { db: new NodeSqliteAdapter(dbPath), backend: 'node-sqlite' };
+    const db = new NodeSqliteAdapter(dbPath);
+    // On some Node.js builds (e.g. Windows), node:sqlite opens successfully but
+    // FTS5 is not compiled in. Test it immediately with a throwaway virtual table.
+    try {
+      db.exec('CREATE VIRTUAL TABLE _codegg_fts5_test USING fts5(content)');
+      db.exec('DROP TABLE _codegg_fts5_test');
+      return { db, backend: 'node-sqlite' };
+    } catch (ftsErr) {
+      db.close();
+      nodeErr = `node:sqlite opened but FTS5 is unavailable: ${ftsErr instanceof Error ? ftsErr.message : String(ftsErr)}`;
+    }
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
+    nodeErr = error instanceof Error ? error.message : String(error);
+  }
+
+  // 2. Fall back to better-sqlite3 (npm package, has FTS5 on all platforms)
+  try {
+    return { db: new BetterSqlite3Adapter(dbPath), backend: 'better-sqlite3' };
+  } catch {
+    // better-sqlite3 is optional — if absent, report the original node:sqlite error
     throw new Error(
-      'Failed to open SQLite via the built-in node:sqlite module.\n' +
-      'CodeGG requires node:sqlite (Node.js 22.5+). Install the self-contained\n' +
-      'CodeGG release (it bundles a compatible Node), or run on Node 22.5+.\n' +
-      `Underlying error: ${msg}`
+      'Failed to open SQLite database.\n' +
+      'CodeGG requires either:\n' +
+      `  - node:sqlite with FTS5 (Node.js 22.5+): ${nodeErr}\n` +
+      '  - The better-sqlite3 npm package (npm install better-sqlite3)\n' +
+      'Run on Node 22.5+, or install the self-contained CodeGG release.'
     );
   }
 }
